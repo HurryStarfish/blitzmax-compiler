@@ -1,0 +1,7 @@
+*.bak
+.bmx
+.bmx/
+/Test
+/Test.debug
+/Test.exe
+/Test.debug.exe

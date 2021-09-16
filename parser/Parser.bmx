@@ -2212,8 +2212,6 @@ Type TParser Implements IParser
 			Local name:TQualifiedNameSyntax = ParseQualifiedName()
 			If Not name Then
 				ReportError "Expected identifier"
-				' TODO: fix dropped trailing comma
-				Exit
 			End If
 			elements :+ [New TQualifiedNameListElementSyntax(comma, name)]
 		Forever
@@ -2259,7 +2257,11 @@ Type TParser Implements IParser
 			If parts And Not dot Then Exit
 			Local identifier:TSyntaxToken = TryTakeToken(TTokenKind.Identifier)
 			If Not identifier Then
-				If Not parts Then Return Null Else ReportError "Expected identifier"; Exit
+				If Not parts Then
+					Return Null
+				Else
+					ReportError "Expected identifier"
+				End If
 			End If
 			parts :+ [New TQualifiedNamePartSyntax(dot, identifier)]
 		Forever

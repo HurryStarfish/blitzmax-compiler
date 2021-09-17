@@ -880,10 +880,10 @@ Type TParser Implements IParser
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), Null, GenerateMissingToken(TTokenKind.RParen))])
+			type_ = New TTypeSyntax(Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
 		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), Null, TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = New TTypeSyntax(type_.colon, type_.base, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
 		Local modifiers:TCallableModifierSyntax[]
@@ -2022,12 +2022,17 @@ Type TParser Implements IParser
 		If typeParseMode = ETypeParseMode.Noncommittal Then state = SaveState()
 		
 		Local colon:TSyntaxToken
-		If colonTypeMode = EColonTypeMode.Colon And currentToken.Kind() <> TTokenKind.LParen Then
+		If colonTypeMode = EColonTypeMode.Colon Then
 			colon = TryTakeToken(TTokenKind.Colon)
 		End If
 		
 		Local allowSigilTypeBase:Int = colonTypeMode = EColonTypeMode.Colon
-		Local base:TTypeBaseSyntax = ParseTypeBase()
+		Local base:TTypeBaseSyntax
+		If colonTypeMode = EColonTypeMode.Colon And Not colon Then
+			base = ParseSigilTypeBase()
+		Else
+			base = ParseTypeBase()
+		End If
 		
 		If Not colon And Not base Then
 			If callableTypeOption = ECallableTypeOption.Allow And currentToken.Kind() = TTokenKind.LParen Then

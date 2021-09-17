@@ -96,18 +96,17 @@ End Function
 Function TestParser(doPrint:Int = True)
 	Local parser:IParser = New TParser(New TLexer(testfilepath))
 	Local x:ISyntax = parser.ParseCompilationUnit()
-	
 	If doPrint Then
 		For Local error:TParseError = EachIn parser.Errors()
 			Print "PARSE ERROR: " + error.ToString()
 			Notify "PARSE ERROR: " + error.ToString()
 		Next
 		Print SyntaxToString(x)
+		
+		Print "-------------------------"
+		
+		Print SyntaxToCode(x)
 	End If
-	
-	Print "-------------------------"
-	
-	Print SyntaxToCode(x)
 End Function
 
 

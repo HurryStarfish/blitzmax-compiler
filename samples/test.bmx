@@ -98,3 +98,9 @@ If x Then
 	d
 End If
 End Rem
+
+'Local a:Int[,] = New A.B[3,3][9]
+x = A[3] B
+Function F()'(x:i[1] = 1)
+End Function
+

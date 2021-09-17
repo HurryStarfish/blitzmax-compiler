@@ -2025,12 +2025,12 @@ End Type
 
 Type TArrayTypeSuffixSyntax Extends TTypeSuffixSyntax Final
 	Field ReadOnly lbracket:TSyntaxToken {minor}
-	Field ReadOnly dimensionList:TExpressionListSyntax ' TODO: this can contain non-empty elements only if it appears after a New
+	Field ReadOnly dimensionsList:TExpressionListSyntax ' TODO: this can contain non-empty elements only if it appears after a New
 	Field ReadOnly rbracket:TSyntaxToken {minor}
 	
-	Method New(lbracket:TSyntaxToken, dimensionList:TExpressionListSyntax, rbracket:TSyntaxToken)
+	Method New(lbracket:TSyntaxToken, dimensionsList:TExpressionListSyntax, rbracket:TSyntaxToken)
 		Self.lbracket = lbracket
-		Self.dimensionList = dimensionList
+		Self.dimensionsList = dimensionsList
 		Self.rbracket = rbracket
 		Verify Self
 	End Method
@@ -2038,7 +2038,7 @@ Type TArrayTypeSuffixSyntax Extends TTypeSuffixSyntax Final
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			lbracket, ..
-			dimensionList, ..
+			dimensionsList, ..
 			rbracket ..
 		)
 	End Method
@@ -2208,7 +2208,7 @@ End Type
 
 Type TTypeListElementSyntax Implements ISyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
-	Field ReadOnly type_:TTypeSyntax
+	Field ReadOnly type_:TTypeSyntax {nullable}
 	
 	Method New(comma:TSyntaxToken, type_:TTypeSyntax)
 		Self.comma = comma
@@ -2245,7 +2245,7 @@ End Type
 
 Type TQualifiedNameListElementSyntax Implements ISyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
-	Field ReadOnly name:TQualifiedNameSyntax
+	Field ReadOnly name:TQualifiedNameSyntax {nullable}
 	
 	Method New(comma:TSyntaxToken, name:TQualifiedNameSyntax)
 		Self.comma = comma

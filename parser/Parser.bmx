@@ -7,6 +7,8 @@ Import "../syntax/Syntax.bmx"
 
 Private
 
+Const ThrowOnParseError:Int = False ' for debugging
+
 ' for declaration parsing:
 
 Enum ETypeKind
@@ -32,6 +34,41 @@ Enum EInitializersOption
 	Require
 End Enum
 
+' for type parsing:
+
+Enum ETypeParseMode
+	Committal
+	Noncommittal
+	' committal parsing means locking into success after having successfully parsed the first token
+	' and is to be used in contexts where it is certain that a type is expected (even if optional);
+	' noncommittal parsing means using backtracking to fail late if no valid type can be parsed
+	' and is to be used in contexts where it is uncertain whether to expect a type or something else
+End Enum
+
+Enum EColonTypeMode
+	Colon ' omitted in void-returning callable types
+	NoColon
+End Enum
+
+Enum ECallableTypeOption
+	Disallow
+	Allow
+End Enum
+
+Enum EArrayDimensionsOption
+	Disallow
+	Allow
+	Require
+End Enum
+
+' for list parsing:
+
+Enum EEmptyElementsOption
+	Disallow
+	Allow
+	Require
+End Enum
+
 
 
 Struct SParserState
@@ -40,14 +77,17 @@ Struct SParserState
 	Field ReadOnly currentToken:TSyntaxToken
 	Field ReadOnly nextLexerToken:TLexerToken
 	Field ReadOnly nextLeadingTrivia:TLexerToken[]
-	' TODO: include terminator stack and error list?
+	Field ReadOnly parseErrors:TList'<TParseError>
+	Field ReadOnly terminatorStack:TTerminatorStack
 	
 	Public
-	Method New(lexerPosition:ILexerPosition, currentToken:TSyntaxToken, nextLexerToken:TLexerToken, nextLeadingTrivia:TLexerToken[])
+	Method New(lexerPosition:ILexerPosition, currentToken:TSyntaxToken, nextLexerToken:TLexerToken, nextLeadingTrivia:TLexerToken[], parseErrors:TList, terminatorStack:TTerminatorStack)
 		Self.lexerPosition = lexerPosition
 		Self.currentToken = currentToken
 		Self.nextLexerToken = nextLexerToken
 		Self.nextLeadingTrivia = nextLeadingTrivia
+		Self.parseErrors = parseErrors
+		Self.terminatorStack = terminatorStack
 	End Method
 End Struct
 
@@ -57,6 +97,13 @@ Type TTerminatorStack Final
 	Field stackSize:Int = 0
 	
 	Public
+	Method Copy:TTerminatorStack()
+		Local c:TTerminatorStack = New TTerminatorStack
+		c.stack = Self.stack[..Self.stackSize]
+		c.stackSize = Self.stackSize
+		Return c
+	End Method
+	
 	Method Push(possibleTerminatorKinds:TTokenKind[]) ' multiple options are possible
 		Assert possibleTerminatorKinds Else "Must specify at least one terminator"
 		If stack.length = stackSize Then stack = stack[..stack.length * 2]
@@ -88,12 +135,12 @@ Type TParser Implements IParser
 	
 	Field ReadOnly lexer:ILexer
 	Field currentToken:TSyntaxToken
-	Field parseErrors:TList = New TList'<TParseError>
 		
 	Private
 	Field nextLexerToken:TLexerToken
 	Field nextLeadingTrivia:TLexerToken[]
 	
+	Field parseErrors:TList = New TList'<TParseError>
 	Field terminatorStack:TTerminatorStack = New TTerminatorStack
 	
 	Method New() End Method
@@ -107,15 +154,6 @@ Type TParser Implements IParser
 	Method Errors:TList() Override '<TParseError>
 		Return parseErrors
 	End Method
-	
-	Function IsDefiniteTrivia:Int(token:TLexerToken)
-		Return ..
-			token.kind = TTokenKind.Whitespace Or ..
-			token.kind = TTokenKind.Comment Or ..
-			token.kind = TTokenKind.Rem_ Or ..
-			token.kind = TTokenKind.RemComment Or ..
-			token.kind = TTokenKind.EndRem_
-	End Function
 	
 	Method AdvanceToNextSyntaxToken() ' will also skip line continuations (line breaks escaped via ..)
 		' - scan from nextLexerToken to the next non-trivia token after it
@@ -200,9 +238,18 @@ Type TParser Implements IParser
 		currentToken = New TSyntaxToken(newCurrentLexerToken, newCurrentLeadingTrivia, newCurrentTrailingTrivia)
 	End Method
 	
+	Private
+	Function IsDefiniteTrivia:Int(token:TLexerToken)
+		Return ..
+			token.kind = TTokenKind.Whitespace Or ..
+			token.kind = TTokenKind.Comment Or ..
+			token.kind = TTokenKind.Rem_ Or ..
+			token.kind = TTokenKind.RemComment Or ..
+			token.kind = TTokenKind.EndRem_
+	End Function
+	
 	Method SaveState:SParserState()
-		Local lexerPosition:ILexerPosition = lexer.GetPosition()
-		Return New SParserState(lexerPosition, currentToken, nextLexerToken, nextLeadingTrivia)
+		Return New SParserState(lexer.GetPosition(), currentToken, nextLexerToken, nextLeadingTrivia, parseErrors.Copy(), terminatorStack.Copy())
 	End Method
 	
 	Method RestoreState(pos:SParserState)
@@ -210,10 +257,11 @@ Type TParser Implements IParser
 		currentToken = pos.currentToken
 		nextLexerToken = pos.nextLexerToken
 		nextLeadingTrivia = pos.nextLeadingTrivia
+		parseErrors = pos.parseErrors
+		terminatorStack = pos.terminatorStack
 	End Method
 	
 	Public
-	
 	Method TakeToken:TSyntaxToken()
 		' takes the current token
 		Local token:TSyntaxToken = currentToken
@@ -284,7 +332,7 @@ Type TParser Implements IParser
 	Method ReportError(error:String)
 		' TODO: allow specifying the code location of the error
 		parseErrors.AddLast New TParseError(currentToken, error)
-		'Throw error ' for debugging
+		If ThrowOnParseError Then Throw error
 	End Method
 	
 	' all Parse* methods either succeed by returning a valid object (in which case they can still
@@ -617,14 +665,14 @@ Type TParser Implements IParser
 				expectMemberImplementations = True
 				extendsKeyword = TryTakeToken(TTokenKind.Extends_)
 				If extendsKeyword Then
-					superClass = ParseType(False)
+					superClass = ParseSuperType()
 					If Not superClass Then
 						ReportError "Expected type"
 					End If
 				End If
 				implementsKeyword = TryTakeToken(TTokenKind.Implements_)
 				If implementsKeyword Then
-					superInterfaces = ParseTypeList()
+					superInterfaces = ParseSuperTypeList()
 				End If
 			Case ETypeKind.Struct_
 				expectMemberImplementations = True
@@ -636,7 +684,7 @@ Type TParser Implements IParser
 				expectMemberImplementations = False
 				extendsKeyword = TryTakeToken(TTokenKind.Extends_)
 				If extendsKeyword Then
-					superInterfaces = ParseTypeList()
+					superInterfaces = ParseSuperTypeList()
 					If Not superInterfaces Then
 						ReportError "Expected type"
 						superInterfaces = New TTypeListSyntax([])
@@ -693,7 +741,7 @@ Type TParser Implements IParser
 			name = GenerateMissingName()
 		End If
 		
-		Local baseType:TTypeSyntax = ParseType(True)
+		Local baseType:TTypeSyntax = ParseSuperType()
 		
 		Local flagsKeyword:TContextualKeywordSyntax = ParseContextualKeyword("Flags")
 		
@@ -819,7 +867,7 @@ Type TParser Implements IParser
 		
 		' TODO type params
 		
-		Local type_:TTypeSyntax = ParseType(True)
+		Local type_:TTypeSyntax = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
 		' generate a void-return-no-parameters type if no type can be parsed;
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
@@ -870,8 +918,9 @@ Type TParser Implements IParser
 		Assert acceptedDeclarationKeywords Else "Must specify accepted keywords"
 		? Debug
 		For Local i:Int = 0 Until acceptedDeclarationKeywords.length
+			If Not acceptedDeclarationKeywords[i] Then Continue ' Select is broken on types with overloaded = in NG
 			Select acceptedDeclarationKeywords[i]
-				Case TTokenKind.Local_, TTokenKind.Global_, TTokenKind.Const_, TTokenKind.Field_, Null ' ok
+				Case TTokenKind.Local_, TTokenKind.Global_, TTokenKind.Const_, TTokenKind.Field_', Null ' ok
 				Default RuntimeError "Unsupported declaration keyword"
 			End Select
 			Assert Not (acceptedDeclarationKeywords[i] = TTokenKind.Const_ And initializersOption = EInitializersOption.Disallow) Else "Cannot disallow initializers when Const is accepted"
@@ -907,11 +956,21 @@ Type TParser Implements IParser
 		If multipleDeclaratorsOption = EMultipleDeclaratorsOption.Allow Then
 			declarators = ParseVariableDeclaratorList(initializersOption)
 		Else
+			' TODO: option for optional variable names
+			'       since a parameter named x of type () is syntactically indistinguishable
+			'       from an unnamed parameter of type x(), declarators in a declaration should
+			'       be either all named or all unnamed to reduce the risk of ambiguities;
+			'       it is however still possible for a declaration as a whole to be ambiguous if
+			'       all of its declarators are ambiguous - in this case semantic analysis could
+			'       first look up x as a type name, and, if unsuccessful, interpret it as a variable
+			'       name; this would break backwards compatibility, and while unlikely to affect
+			'       existing code since variables names and type names follow different conventions,
+			'       it could lead to unexpected behaviour in case of a misspelled type name
 			Local declarator:TVariableDeclaratorSyntax = ParseVariableDeclarator(initializersOption)
 			If declarator Then
 				declarators = New TVariableDeclaratorListSyntax([New TVariableDeclaratorListElementSyntax(Null, declarator)])
 			Else
-				ReportError "Expected variable name"
+				ReportError "Expected variable declarator"
 				declarators = New TVariableDeclaratorListSyntax([])
 			End If
 		End If
@@ -925,13 +984,22 @@ Type TParser Implements IParser
 		Local name:TNameSyntax = ParseName()
 		If Not name Then Return Null
 		
-		Local type_:TTypeSyntax = ParseVariableDeclarationType()
+		Local arrayDimensionsOption:EArrayDimensionsOption
+		Select initializersOption
+			Case EInitializersOption.Disallow arrayDimensionsOption = EArrayDimensionsOption.Disallow
+			Case EInitializersOption.Allow    arrayDimensionsOption = EArrayDimensionsOption.Allow
+			Case EInitializersOption.Require  arrayDimensionsOption = EArrayDimensionsOption.Require
+			Default RuntimeError "Missing case"
+		End Select
+		
+		Local type_:TTypeSyntax = ParseVariableDeclaratorType(arrayDimensionsOption)
 		If Not type_ Then
 			ReportError "Expected type"
 		End If
 		
 		Local initializer:TAssignmentSyntax
-		If initializersOption <> EInitializersOption.Disallow Then
+		Local typeHasArrayDimensions:Int = type_ And type_.suffixes And HasAnyArrayDimensions(type_.suffixes[type_.suffixes.length - 1])
+		If initializersOption <> EInitializersOption.Disallow And Not typeHasArrayDimensions Then ' dimensions act as an initializer; cannot have both
 			initializer = ParseAssignment()
 		End If
 		If Not initializer And initializersOption = EInitializersOption.Require Then
@@ -1446,7 +1514,7 @@ Type TParser Implements IParser
 			Return False
 		End Function
 		
-		Local callOperator:TExpressionListSyntax = ParseExpressionList(True)
+		Local callOperator:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Allow)
 		
 		Return New TParenlessCallStatementSyntax(expression, callOperator)
 	End Method
@@ -1723,24 +1791,11 @@ Type TParser Implements IParser
 	End Method
 	
 	Method ParseTypeCastExpression:TTypeCastExpressionSyntax()
-		' TODO: integrate this into ParseType somehow
 		Local state:SParserState = SaveState()
 		
-		Local base:TTypeBaseSyntax = ParseTypeBase()
-		If Not base Then Return Null
-		If TSigilTypeBaseSyntax(base) Then
-			' not allowed in a cast
-			RestoreState state
-			Return Null		
-		End If
-		
-		Local suffixes:TTypeSuffixSyntax[]
-		Repeat
-			Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(False)
-			If suffix Then suffixes :+ [suffix] Else Exit
-		Forever
-		
-		If Not TKeywordTypeBaseSyntax(base) And Not suffixes Then
+		Local targetType:TTypeSyntax = ParseTypeCastType()
+		If Not targetType Then Return Null
+		If Not TKeywordTypeBaseSyntax(targetType.base) And Not targetType.suffixes Then
 			' casts to types that begin with keywords (e.g.: Object x) are unambiguous,
 			' and so are casts to types with a suffix (e.g.: T Ptr x), but casts to
 			' non-keyword non-suffix types (e.g. T x) are syntactically indistinguishable from
@@ -1755,8 +1810,6 @@ Type TParser Implements IParser
 			RestoreState state
 			Return Null
 		End If
-		
-		Local targetType:TTypeSyntax = New TTypeSyntax(Null, base, suffixes)
 		
 		Local arg:IPrefixCompatibleExpressionSyntax = ParsePrefixCompatibleExpression()
 		If Not arg Then
@@ -1803,14 +1856,14 @@ Type TParser Implements IParser
 	End Method
 	
 	Method ParseIndexExpression:TIndexExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
-		Local indexOperator:TBracketExpressionListSyntax = ParseBracketExpressionList(False)
+		Local indexOperator:TBracketExpressionListSyntax = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
 		If Not indexOperator Then Return Null
 		
 		Return New TIndexExpressionSyntax(arg, indexOperator)
 	End Method
 	
 	Method ParseCallExpression:TCallExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
-		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(True)
+		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(EEmptyElementsOption.Allow)
 		If Not callOperator Then Return Null
 		
 		Return New TCallExpressionSyntax(arg, callOperator)
@@ -1861,7 +1914,7 @@ Type TParser Implements IParser
 			type_ = GenerateMissingType()
 		End If
 		
-		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(True)
+		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(EEmptyElementsOption.Allow)
 				
 		Return New TNewExpressionSyntax(keyword, type_, callOperator)
 	End Method
@@ -1927,7 +1980,7 @@ Type TParser Implements IParser
 		Local value:TSyntaxToken = TryTakeToken([TTokenKind.IntLiteral, TTokenKind.HexIntLiteral, TTokenKind.BinIntLiteral, TTokenKind.FloatLiteral])
 		If Not value Then Return Null
 		
-		Local type_:TTypeSyntax = ParseNonCallableType(True)
+		Local type_:TTypeSyntax = ParseLiteralExpressionType()
 		
 		Return New TNumericLiteralExpressionSyntax(value, type_)
 	End Method
@@ -1936,13 +1989,13 @@ Type TParser Implements IParser
 		Local value:TSyntaxToken = TryTakeToken(TTokenKind.StringLiteral)
 		If Not value Then Return Null
 		
-		Local type_:TTypeSyntax = ParseNonCallableType(True)
+		Local type_:TTypeSyntax = ParseLiteralExpressionType()
 		
 		Return New TStringLiteralExpressionSyntax(value, type_)
 	End Method
 	
 	Method ParseArrayLiteralExpression:TArrayLiteralExpressionSyntax()
-		Local elementList:TBracketExpressionListSyntax = ParseBracketExpressionList(False)
+		Local elementList:TBracketExpressionListSyntax = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
 		If Not elementList Then Return Null
 		
 		Return New TArrayLiteralExpressionSyntax(elementList)
@@ -1954,70 +2007,98 @@ Type TParser Implements IParser
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseType:TTypeSyntax(withColon:Int) ' backtracks
-		Local state:SParserState = SaveState()
+	Method ParseType:TTypeSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' backtracks
+		' TODO: improve code, hard to understand
+		Assert Not (colonTypeMode = EColonTypeMode.Colon And typeParseMode = ETypeParseMode.Noncommittal) Else "Cannot combine Colon and Noncommittal"
+		
+		Local state:SParserState
+		If typeParseMode = ETypeParseMode.Noncommittal Then state = SaveState()
 		
 		Local colon:TSyntaxToken
-		Local base:TTypeBaseSyntax
-		
-		If withColon And currentToken.Kind() <> TTokenKind.LParen Then
+		If colonTypeMode = EColonTypeMode.Colon And currentToken.Kind() <> TTokenKind.LParen Then
 			colon = TryTakeToken(TTokenKind.Colon)
-			If Not colon Then Return Null
 		End If
 		
-		If Not colon And currentToken.Kind() = TTokenKind.LParen Then
-			base = Null	' void-returning callable
-		Else
-			base = ParseTypeBase()
-			If Not base Then
+		Local allowSigilTypeBase:Int = colonTypeMode = EColonTypeMode.Colon
+		Local base:TTypeBaseSyntax = ParseTypeBase()
+		
+		If Not colon And Not base Then
+			If callableTypeOption = ECallableTypeOption.Allow And currentToken.Kind() = TTokenKind.LParen Then
+				base = Null	' void-returning callable type, no issues
+			Else
+				Return Null ' there does not seem to be a type here
+			End If
+		Else If colon And Not base Then
+			ReportError "Expected type" ' base stays null ' TODO: better message?
+		Else If TSigilTypeBaseSyntax(base) And Not allowSigilTypeBase Then
+			If typeParseMode = ETypeParseMode.Committal Then
+				ReportError "Expected non-sigil type" ' base stays as-is ' TODO: better message?
+			Else
 				RestoreState state
 				Return Null
 			End If
 		End If
 		
 		Local suffixes:TTypeSuffixSyntax[]
+		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
 		Repeat
 			' TODO: handle marshalled types like $z and $w
-			Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(True)
-			If suffix Then suffixes :+ [suffix] Else Exit
+			Local stateBeforeSuffix:SParserState
+			If typeParseMode = ETypeParseMode.Noncommittal Then stateBeforeSuffix = SaveState()
+			Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)
+			If suffix Then
+				If HasAnyArrayDimensions(suffix) Then
+					If arrayDimensionsOption = EArrayDimensionsOption.Disallow Then
+						If typeParseMode = ETypeParseMode.Noncommittal Then
+							' this suffix should not have been parsed, is probably an index operator instead
+							RestoreState stateBeforeSuffix
+							Exit
+						End If
+					Else
+						' if dimensions have been specified, it must have been the last suffix
+						suffixes :+ [suffix]
+						Exit
+					End If
+				End If
+				suffixes :+ [suffix]
+			Else
+				Exit
+			End If
 		Forever
 		
 		Return New TTypeSyntax(colon, base, suffixes)
 	End Method
 	
+	Method ParseSuperType:TTypeSyntax()
+		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
+	End Method
+	
+	Method ParseSuperTypeList:TTypeListSyntax()
+		Return ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
+	End Method
+	
+	Method ParseVariableDeclaratorType:TTypeSyntax(arrayDimensionsOption:EArrayDimensionsOption)
+		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Allow, arrayDimensionsOption)
+	End Method
+	
+	Method ParseTypeCastType:TTypeSyntax()
+		Return ParseType(ETypeParseMode.Noncommittal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
+	End Method
+	
 	Method ParseNewConstructibleType:TTypeSyntax()
-		Return ParseType(False)
-		' TODO
-		' like ParseType, but does not allow:
-		' - function types
-		' - array types without dimensions
-		' - Ptr and Var types
-		' but allows:
-		' - array dimensions
-		' or should it actually allow every type? a parameterless New could be considered equivalent,
-		' and this method being called after we are already locked into parsing a type to Null
+		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Require)
 	End Method
 	
-	Method ParseNonCallableType:TTypeSyntax(withColon:Int)
-		Return ParseType(True)
-		' TODO
-		' like ParseType, but does not allow:
-		' - function types
-		' used for type assertions and casts
+	Method ParseLiteralExpressionType:TTypeSyntax()
+		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseVariableDeclarationType:TTypeSyntax()
-		Return ParseType(True)
-		' TODO
-		' like ParseType, but allows for array dimensions (like ParseNewConstructibleType does)
-	End Method
-		
 	Method ParseTypeBase:TTypeBaseSyntax()
 		Local typeBase:TTypeBaseSyntax
 		typeBase = ParseQualifiedNameTypeBase(); If typeBase Then Return typeBase
 		' TODO: ParseTypeBindingOperator?
-		typeBase = ParseSigilTypeBase();         If typeBase Then Return typeBase
 		typeBase = ParseKeywordTypeBase();       If typeBase Then Return typeBase
+		typeBase = ParseSigilTypeBase();         If typeBase Then Return typeBase
 		Return Null
 	End Method
 	
@@ -2066,14 +2147,14 @@ Type TParser Implements IParser
 		Return New TQualifiedNameTypeBaseSyntax(name)
 	End Method
 	
-	Method ParseTypeSuffix:TTypeSuffixSyntax(allowCallable:Int)
+	Method ParseTypeSuffix:TTypeSuffixSyntax(callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption)		
 		Local typeSuffix:TTypeSuffixSyntax
-		If allowCallable Then
+		If callableTypeOption = ECallableTypeOption.Allow Then
 			typeSuffix = ParseCallableTypeSuffix(); If typeSuffix Then Return typeSuffix
 		End If
-		typeSuffix = ParseArrayTypeSuffix(); If typeSuffix Then Return typeSuffix
-		typeSuffix = ParsePtrTypeSuffix();   If typeSuffix Then Return typeSuffix
-		typeSuffix = ParseVarTypeSuffix();   If typeSuffix Then Return typeSuffix
+		typeSuffix = ParseArrayTypeSuffix(arrayDimensionsOption); If typeSuffix Then Return typeSuffix
+		typeSuffix = ParsePtrTypeSuffix(); If typeSuffix Then Return typeSuffix
+		typeSuffix = ParseVarTypeSuffix(); If typeSuffix Then Return typeSuffix
 		Return Null
 	End Method
 	
@@ -2091,17 +2172,23 @@ Type TParser Implements IParser
 		Return New TVarTypeSuffixSyntax(token)
 	End Method
 	
-	Method ParseArrayTypeSuffix:TArrayTypeSuffixSyntax()
-		' TODO: distinguish between New (elements may be non-empty) and regular array type (elements must be empty)
-		'       this is very important in expressions to tell casts apart from indexing
+	Method ParseArrayTypeSuffix:TArrayTypeSuffixSyntax(arrayDimensionsOption:EArrayDimensionsOption)
+		' will not fail if arrayDimensionsOption is violated; only report errors
 		Local lbracket:TSyntaxToken = TryTakeToken(TTokenKind.LBracket)
 		If Not lbracket Then Return Null
 		
-		Local dimensionList:TExpressionListSyntax = ParseExpressionList(True)
+		Local emptyElementsOption:EEmptyElementsOption
+		Select arrayDimensionsOption ' TODO: report error if some dimensions are specified but some are not
+			Case EArrayDimensionsOption.Disallow emptyElementsOption = EEmptyElementsOption.Require
+			Case EArrayDimensionsOption.Allow    emptyElementsOption = EEmptyElementsOption.Allow
+			Case EArrayDimensionsOption.Require  emptyElementsOption = EEmptyElementsOption.Disallow
+			Default RuntimeError "Missing case"
+		End Select
+		Local dimensionsList:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
 		
 		Local rbracket:TSyntaxToken = TakeToken(TTokenKind.RBracket)
 		
-		Return New TArrayTypeSuffixSyntax(lbracket, dimensionList, rbracket)
+		Return New TArrayTypeSuffixSyntax(lbracket, dimensionsList, rbracket)
 	End Method
 	
 	Method ParseCallableTypeSuffix:TCallableTypeSuffixSyntax()
@@ -2125,38 +2212,40 @@ Type TParser Implements IParser
 			End If
 			Local declarator:TVariableDeclaratorSyntax = ParseVariableDeclarator(initializersOption)
 			If Not declarator Then
-				ReportError "Expected variable name"
-				' TODO: fix dropped trailing comma
-				Exit
+				If Not elements Then
+					Exit
+				Else
+					ReportError "Expected variable declarator"
+				End If
 			End If
 			elements :+ [New TVariableDeclaratorListElementSyntax(comma, declarator)]
 		Forever
 		Return New TVariableDeclaratorListSyntax(elements)
 	End Method
 	
-	Method ParseParenExpressionList:TParenExpressionListSyntax(allowEmptyElements:Int)
+	Method ParseParenExpressionList:TParenExpressionListSyntax(emptyElementsOption:EEmptyElementsOption)
 		Local lparen:TSyntaxToken = TryTakeToken(TTokenKind.LParen)
 		If Not lparen Then Return Null
 		
-		Local list:TExpressionListSyntax = ParseExpressionList(allowEmptyElements)
+		Local list:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
 		
 		Local rparen:TSyntaxToken = TakeToken(TTokenKind.RParen)
 		
 		Return New TParenExpressionListSyntax(lparen, list, rparen)
 	End Method
 	
-	Method ParseBracketExpressionList:TBracketExpressionListSyntax(allowEmptyElements:Int)
+	Method ParseBracketExpressionList:TBracketExpressionListSyntax(emptyElementsOption:EEmptyElementsOption)
 		Local lbracket:TSyntaxToken = TryTakeToken(TTokenKind.LBracket)
 		If Not lbracket Then Return Null
 		
-		Local list:TExpressionListSyntax = ParseExpressionList(allowEmptyElements)
+		Local list:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
 		
 		Local rbracket:TSyntaxToken = TakeToken(TTokenKind.RBracket)
 		
 		Return New TBracketExpressionListSyntax(lbracket, list, rbracket)
 	End Method
 	
-	Method ParseExpressionList:TExpressionListSyntax(allowEmptyElements:Int) ' always succeeds
+	Method ParseExpressionList:TExpressionListSyntax(emptyElementsOption:EEmptyElementsOption) ' always succeeds
 		Local elements:TExpressionListElementSyntax[]
 		Repeat
 			Local comma:TSyntaxToken
@@ -2165,16 +2254,15 @@ Type TParser Implements IParser
 				If Not comma Then Exit
 			End If
 			Local expression:IExpressionSyntax = ParseExpression()
-			If Not expression Then
-				If Not elements And currentToken.Kind() <> TTokenKind.Comma Then Exit ' empty list
-				'If Not allowEmptyElements Or currentToken.Kind() <> TTokenKind.Comma Then ReportError "Expected expression"; Exit
-				If Not allowEmptyElements Then
+			If expression Then
+				If emptyElementsOption = EEmptyElementsOption.Require Then
+					ReportError "Expected ," ' TODO: skip tokens
+				End If
+			Else
+				If Not elements And currentToken.Kind() <> TTokenKind.Comma Then
+					Exit ' empty list
+				Else If emptyElementsOption = EEmptyElementsOption.Disallow Then
 					ReportError "Expected expression"
-					If currentToken.Kind() <> TTokenKind.Comma Then
-						elements :+ [New TExpressionListElementSyntax(comma, GenerateMissingExpression())]
-						' TODO: fix dropped trailing comma
-						Exit ' TODO: try to skip ahead to next comma if ParseExpression fails?
-					End If
 				End If
 			End If
 			elements :+ [New TExpressionListElementSyntax(comma, expression)]
@@ -2182,19 +2270,17 @@ Type TParser Implements IParser
 		Return New TExpressionListSyntax(elements)
 	End Method
 	
-	Method ParseTypeList:TTypeListSyntax() ' always succeeds
+	Method ParseTypeList:TTypeListSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' always succeeds
 		Local elements:TTypeListElementSyntax[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
-				comma = TryTakeToken(TTokenKind.Comma)
+				comma = TryTakeToken(TTokenKind.Comma) ' TODO: put comma on terminator stack?
 				If Not comma Then Exit
 			End If
-			Local type_:TTypeSyntax = ParseType(False)
+			Local type_:TTypeSyntax = ParseType(typeParseMode, colonTypeMode, callableTypeOption, arrayDimensionsOption)
 			If Not type_ Then
 				ReportError "Expected type"
-				' TODO: fix dropped trailing comma
-				Exit
 			End If
 			elements :+ [New TTypeListElementSyntax(comma, type_)]
 		Forever
@@ -2333,5 +2419,15 @@ Type TParser Implements IParser
 		Forever
 		Return separators
 	End Method
+	
+	Function HasAnyArrayDimensions:Int(suffix:TTypeSuffixSyntax) ' returns True if there is at least one
+		Local arraySuffix:TArrayTypeSuffixSyntax = TArrayTypeSuffixSyntax(suffix)
+		If arraySuffix Then
+			For Local element:TExpressionListElementSyntax = EachIn arraySuffix.dimensionsList.elements
+				If element.expression Then Return True
+			Next
+		End If
+		Return False
+	End Function
 	
 End Type

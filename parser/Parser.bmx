@@ -69,6 +69,14 @@ Enum EEmptyElementsOption
 	Require
 End Enum
 
+' for assignment parsing:
+
+Enum EAssignmentMode
+	Regular
+	RegularOrCompound
+	Constant
+End Enum
+
 
 
 Struct SParserState
@@ -763,7 +771,7 @@ Type TParser Implements IParser
 		Local name:TNameSyntax = ParseName()
 		If Not name Then Return Null
 		
-		Local assignment:TAssignmentSyntax = ParseConstantAssignment()
+		Local assignment:TAssignmentSyntax = ParseAssignment(EAssignmentMode.Constant)
 		
 		Return New TEnumMemberDeclarationSyntax(name, assignment)
 	End Method
@@ -1000,11 +1008,11 @@ Type TParser Implements IParser
 		Local initializer:TAssignmentSyntax
 		Local typeHasArrayDimensions:Int = type_ And type_.suffixes And HasAnyArrayDimensions(type_.suffixes[type_.suffixes.length - 1])
 		If initializersOption <> EInitializersOption.Disallow And Not typeHasArrayDimensions Then ' dimensions act as an initializer; cannot have both
-			initializer = ParseAssignment()
+			initializer = ParseAssignment(EAssignmentMode.Regular)
 		End If
 		If Not initializer And initializersOption = EInitializersOption.Require Then
 			ReportError "Expected initializer"
-			initializer = New TAssignmentSyntax(GenerateMissingToken(TTokenKind.Eq), GenerateMissingExpression())
+			initializer = New TAssignmentSyntax(New TOperatorSyntax([GenerateMissingToken(TTokenKind.Eq)]), GenerateMissingExpression())
 		End If
 		
 		If Not type_ And Not initializer Then
@@ -1473,7 +1481,7 @@ Type TParser Implements IParser
 		Local target:IExpressionSyntax = ParseLValue()
 		If Not target Then Return Null
 		
-		Local assignment:TAssignmentSyntax = ParseAssignment()
+		Local assignment:TAssignmentSyntax = ParseAssignment(EAssignmentMode.RegularOrCompound)
 		If Not assignment Then
 			RestoreState state
 			Return Null
@@ -2390,12 +2398,30 @@ Type TParser Implements IParser
 		End If
 	End Method
 	
-	Method ParseAssignment:TAssignmentSyntax(constantOnly:Int = False)
-		Local eq:TSyntaxToken = TryTakeToken(TTokenKind.Eq)
-		If Not eq Then Return Null
+	Method ParseAssignment:TAssignmentSyntax(assignmentMode:EAssignmentMode)
+		Local op:TOperatorSyntax
+		Select assignmentMode
+			Case EAssignmentMode.Regular, EAssignmentMode.Constant
+				op = ParseOperator([TTokenKind.Eq])
+			Case EAssignmentMode.RegularOrCompound
+				op = ParseOperator([TTokenKind.Eq])
+				If Not op Then op = ParseOperator([TTokenKind.ColonPlus])
+				If Not op Then op = ParseOperator([TTokenKind.ColonMinus])
+				If Not op Then op = ParseOperator([TTokenKind.ColonMul])
+				If Not op Then op = ParseOperator([TTokenKind.ColonDiv])
+				If Not op Then op = ParseOperator([TTokenKind.ColonMod])
+				If Not op Then op = ParseOperator([TTokenKind.ColonBitAnd])
+				If Not op Then op = ParseOperator([TTokenKind.ColonBitOr])
+				If Not op Then op = ParseOperator([TTokenKind.ColonBitNot])
+				If Not op Then op = ParseOperator([TTokenKind.ColonShl])
+				If Not op Then op = ParseOperator([TTokenKind.ColonShr])
+				If Not op Then op = ParseOperator([TTokenKind.ColonSar])
+		Default RuntimeError "Missing case"
+		End Select
+		If Not op Then Return Null
 		
 		Local expression:IExpressionSyntax
-		If constantOnly Then
+		If assignmentMode = EAssignmentMode.Constant Then
 			expression = ParseConstantExpression()
 			If Not expression Then
 				ReportError "Expected constant expression"
@@ -2409,7 +2435,7 @@ Type TParser Implements IParser
 			End If
 		End If
 		
-		Return New TAssignmentSyntax(eq, expression)
+		Return New TAssignmentSyntax(op, expression)
 	End Method
 	
 	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolons or non-escaped line break)

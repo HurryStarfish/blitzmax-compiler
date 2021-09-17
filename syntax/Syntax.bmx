@@ -2453,18 +2453,18 @@ End Type
 
 
 Type TAssignmentSyntax Implements ISyntax Final
-	Field ReadOnly eq:TSyntaxToken {minor}
+	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly expression:IExpressionSyntax
 	
-	Method New(eq:TSyntaxToken, expression:IExpressionSyntax)
-		Self.eq = eq
+	Method New(op:TOperatorSyntax, expression:IExpressionSyntax)
+		Self.op = op
 		Self.expression = expression
 		Verify Self
 	End Method
 	
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
-			eq, ..
+			op, ..
 			expression ..
 		)
 	End Method

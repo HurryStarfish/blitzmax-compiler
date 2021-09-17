@@ -35,7 +35,7 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 		Return canonicalValue
 	End Method
 	
-		
+	
 	
 	' keep these in sync with Lexer.flex
 	
@@ -143,7 +143,7 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	Global Override_:TTokenKind = New TTokenKind("Override")
 	Global Operator_:TTokenKind = New TTokenKind("Operator")
 	Global Inline_:TTokenKind = New TTokenKind("Inline")
- 
+	
 	Global Extern_:TTokenKind = New TTokenKind("Extern")
 	Global EndExtern_:TTokenKind = New TTokenKind("End Extern")
 	Global Export_:TTokenKind = New TTokenKind("Export")
@@ -163,17 +163,17 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	Global And_:TTokenKind = New TTokenKind("And")
 	Global Or_:TTokenKind = New TTokenKind("Or")
 	Global Not_:TTokenKind = New TTokenKind("Not")
+	Global Mod_:TTokenKind = New TTokenKind("Mod")
 	Global Shl_:TTokenKind = New TTokenKind("Shl")
 	Global Shr_:TTokenKind = New TTokenKind("Shr")
 	Global Sar_:TTokenKind = New TTokenKind("Sar")
-	Global Mod_:TTokenKind = New TTokenKind("Mod")
 	Global Asc_:TTokenKind = New TTokenKind("Asc")
 	Global Chr_:TTokenKind = New TTokenKind("Chr")
 	Global Len_:TTokenKind = New TTokenKind("Len")
 	Global Varptr_:TTokenKind = New TTokenKind("Varptr")
 	Global SizeOf_:TTokenKind = New TTokenKind("SizeOf")
-
-
+	
+	
 	
 	Global LParen:TTokenKind = New TTokenKind("LParen", "(")
 	Global RParen:TTokenKind = New TTokenKind("RParen", ")")
@@ -193,6 +193,9 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	Global DotDot:TTokenKind = New TTokenKind("DotDot", "..")
 	Global QuestionMark:TTokenKind = New TTokenKind("QuestionMark", "?")
 	
+	Global BitAnd:TTokenKind = New TTokenKind("BitAnd", "&")
+	Global BitOr:TTokenKind = New TTokenKind("BitOr", "|")
+	Global BitNot:TTokenKind = New TTokenKind("BitNot", "~~")
 	Global Plus:TTokenKind = New TTokenKind("Plus", "+")
 	Global Minus:TTokenKind = New TTokenKind("Minus", "-")
 	Global Mul:TTokenKind = New TTokenKind("Mul", "*")
@@ -205,9 +208,18 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	Global Gt:TTokenKind = New TTokenKind("Gt", ">")
 	Global Eq:TTokenKind = New TTokenKind("Eq", "=")
 	Global InfEq:TTokenKind = New TTokenKind("InfEq", ":=")
-	Global BitAnd:TTokenKind = New TTokenKind("BitAnd", "&")
-	Global BitOr:TTokenKind = New TTokenKind("BitOr", "|")
-	Global BitNot:TTokenKind = New TTokenKind("BitNot", "~~")
+	
+	Global ColonBitAnd:TTokenKind = New TTokenKind("ColonBitAnd", ":&")
+	Global ColonBitOr:TTokenKind = New TTokenKind("ColonBitOr", ":|")
+	Global ColonBitNot:TTokenKind = New TTokenKind("ColonBitNot", ":~~")
+	Global ColonPlus:TTokenKind = New TTokenKind("ColonPlus", ":+")
+	Global ColonMinus:TTokenKind = New TTokenKind("ColonMinus", ":-")
+	Global ColonMul:TTokenKind = New TTokenKind("ColonMul", ":*")
+	Global ColonDiv:TTokenKind = New TTokenKind("ColonDiv", ":/")
+	Global ColonMod:TTokenKind = New TTokenKind("ColonMod", ":Mod")
+	Global ColonShl:TTokenKind = New TTokenKind("ColonShl", ":Shl")
+	Global ColonShr:TTokenKind = New TTokenKind("ColonShr", ":Shr")
+	Global ColonSar:TTokenKind = New TTokenKind("ColonSar", ":Sar")
 	
 	
 	
@@ -229,7 +241,7 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	Global Rem_:TTokenKind = New TTokenKind("Rem")
 	Global RemComment:TTokenKind = New TTokenKind("RemComment", Null)
 	Global EndRem_:TTokenKind = New TTokenKind("End Rem")
-
+	
 	Global Identifier:TTokenKind = New TTokenKind("Identifier", Null)
 	
 	

@@ -703,12 +703,12 @@ End Type
 
 Type TCaseSelectBranchSyntax Extends TSelectBranchSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
-	Field ReadOnly expression:IExpressionSyntax
+	Field ReadOnly expressionList:TExpressionListSyntax
 	Field ReadOnly body:TCodeBlockSyntax
 	
-	Method New(keyword:TSyntaxToken, expression:IExpressionSyntax, body:TCodeBlockSyntax)
+	Method New(keyword:TSyntaxToken, expressionList:TExpressionListSyntax, body:TCodeBlockSyntax)
 		Self.keyword = keyword
-		Self.expression = expression
+		Self.expressionList = expressionList
 		Self.body = body
 		Verify Self
 	End Method
@@ -716,7 +716,7 @@ Type TCaseSelectBranchSyntax Extends TSelectBranchSyntax Final
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			keyword, ..
-			expression, ..
+			expressionList, ..
 			body ..
 		)
 	End Method

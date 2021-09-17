@@ -1178,13 +1178,12 @@ Type TParser Implements IParser
 			Select currentToken.Kind()
 				Case TTokenKind.Case_
 					Local keyword:TSyntaxToken = TakeToken()
-					Local expression:IExpressionSyntax = ParseExpression()
-					If Not expression Then
+					Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+					If Not expressionList.elements Then
 						ReportError "Expected expression"
-						expression = GenerateMissingExpression()
 					End If
 					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])
-					branches :+ [New TCaseSelectBranchSyntax(keyword, expression, body)]
+					branches :+ [New TCaseSelectBranchSyntax(keyword, expressionList, body)]
 				Case TTokenKind.Default_
 					Local keyword:TSyntaxToken = TakeToken()
 					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])

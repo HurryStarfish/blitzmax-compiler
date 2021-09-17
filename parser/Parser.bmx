@@ -2350,20 +2350,33 @@ Type TParser Implements IParser
 			End If
 			parts :+ [New TQualifiedNamePartSyntax(dot, identifier)]
 		Forever
+		
 		Return New TQualifiedNameSyntax(parts)
 	End Method
 	
-	Method ParseOperator:TOperatorSyntax(tokenKinds:TTokenKind[])
+	Method ParseOperator:TOperatorSyntax(tokenKinds:TTokenKind[]) ' backtracks
+		' backtracks only when more than one token kind is passed
 		Assert tokenKinds Else "Operator must consist of at least one token"
+		
+		Local state:SParserState
+		If tokenKinds.length > 1 Then state = SaveState() ' TODO: performance
+		
 		Local tokens:TSyntaxToken[tokenKinds.length]
 		For Local t:Int = 0 Until tokenKinds.length
 			tokens[t] = TryTakeToken(tokenKinds[t])
-			If Not tokens[t] Then Return Null
-			If t <> 0 Then
+			If Not tokens[t] Then
+				If t > 0 Then RestoreState state
+				Return Null
+			End If
+			If t > 0 Then
 				' do not allow any trivia inbetween the tokens that make up the operator
-				If tokens[t - 1].trailingTrivia Or tokens[t].leadingTrivia Then Return Null
+				If tokens[t - 1].trailingTrivia Or tokens[t].leadingTrivia Then
+					RestoreState state
+					Return Null
+				End If
 			End If
 		Next
+		
 		Return New TOperatorSyntax(tokens)
 	End Method
 	
@@ -2397,10 +2410,6 @@ Type TParser Implements IParser
 		End If
 		
 		Return New TAssignmentSyntax(eq, expression)
-	End Method
-	
-	Method ParseConstantAssignment:TAssignmentSyntax()
-		Return ParseAssignment(True)
 	End Method
 	
 	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolons or non-escaped line break)

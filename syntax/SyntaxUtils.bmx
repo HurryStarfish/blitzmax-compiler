@@ -10,13 +10,21 @@ Import "SyntaxVisitor.bmx" ' TODO: untangle this, visitors should be in their ow
 Private
 
 Const Indent:String = "  "
-Global iSyntaxType:TTypeId = TTypeId.ForName("ISyntax")
-Assert iSyntaxType Else "ISyntax type not found"
+Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
+Assert iSyntaxTypeId Else "ISyntax type not found"
+Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
+Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
 
 ? Debug
-' verify correct use of {nullable}
 For Local t:TTypeId = EachIn TTypeId.EnumTypes()
-	If t.Interfaces() And t.Interfaces().Contains(iSyntaxType) Then
+	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
+		' verify presence of TSyntaxToken field
+		Local hasSyntaxTokenField:Int = False
+		For Local f:TField = EachIn GetAllFields(t)
+			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True; Exit
+		Next
+		If Not hasSyntaxTokenField Then RuntimeError "Type " + t.Name() + " implements ISyntax and must have a TSyntaxToken field"
+		' verify correct use of {nullable}
 		For Local f:TField = EachIn GetAllFields(t)
 			If f.MetaData("nullable") Then
 				If Not f.TypeId().ExtendsType(ObjectTypeId) Then RuntimeError "Cannot use {nullable} on non-object fields (" + t.Name() + "." + f.Name() + ")"

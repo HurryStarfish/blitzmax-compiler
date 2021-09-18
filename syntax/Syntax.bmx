@@ -12,13 +12,30 @@ Import BRL.Reflection
 
 Public
 
+Type TSyntax Implements ISyntax Abstract
+	Method CodeRange:SCodeRange() Override Final
+		Local children:ISyntaxOrSyntaxToken[] = GetChildren()
+		Local firstChild:ISyntaxOrSyntaxToken = children[0]
+		If children.length = 1 Then
+			Return firstChild.CodeRange()
+		Else
+			Local lastChild:ISyntaxOrSyntaxToken = children[children.length - 1]
+			Return New SCodeRange(firstChild.CodeRange().startLocation, lastChild.CodeRange().endLocation)
+		End If
+	End Method
+	
+	' TODO: ToString
+	
+	' TODO: ToCode
+End Type
+
 
 
 ' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Top-Level ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
-Type TCompilationUnitSyntax Implements ISyntax Final
+Type TCompilationUnitSyntax Extends TSyntax Final
 	Field ReadOnly header:TCodeHeaderSyntax
 	Field ReadOnly body:TCodeBodySyntax
 	Field ReadOnly eofToken:TSyntaxToken {minor}
@@ -41,7 +58,7 @@ End Type
 
 
 
-Type TCodeHeaderSyntax Implements ISyntax Final
+Type TCodeHeaderSyntax Extends TSyntax Final
 	Field ReadOnly elements:ICodeHeaderElementSyntax[]
 	
 	Method New(elements:ICodeHeaderElementSyntax[])
@@ -63,7 +80,7 @@ End Interface
 
 
 
-Type TCodeBodySyntax Implements ISyntax Final
+Type TCodeBodySyntax Extends TSyntax Final
 	Field ReadOnly block:TCodeBlockSyntax
 	
 	Method New(block:TCodeBlockSyntax)
@@ -80,7 +97,7 @@ End Type
 
 
 
-Type TCodeBlockSyntax Implements ISyntax Final
+Type TCodeBlockSyntax Extends TSyntax Final
 	Field ReadOnly elements:ICodeBlockElementSyntax[]
 	
 	Method New(elements:ICodeBlockElementSyntax[])
@@ -113,7 +130,7 @@ End Interface
 
 
 
-Type TStrictnessDirectiveSyntax Implements IHeaderDirectiveSyntax Final
+Type TStrictnessDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly strictness:TSyntaxToken
 	
 	Method New(strictness:TSyntaxToken)
@@ -130,7 +147,7 @@ End Type
 
 
 
-Type TModuleDirectiveSyntax Implements IHeaderDirectiveSyntax Final
+Type TModuleDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly moduleName:TQualifiedNameSyntax
 	
@@ -150,7 +167,7 @@ End Type
 
 
 
-Type TModuleInfoDirectiveSyntax Implements IHeaderDirectiveSyntax Final
+Type TModuleInfoDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly info:TStringLiteralExpressionSyntax
 	
@@ -169,7 +186,7 @@ End Type
 
 
 
-Type TFrameworkDirectiveSyntax Implements IHeaderDirectiveSyntax Final
+Type TFrameworkDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly moduleName:TQualifiedNameSyntax
 	
@@ -188,7 +205,7 @@ End Type
 
 
 
-Type TImportDirectiveSyntax Implements IHeaderDirectiveSyntax Final
+Type TImportDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly importName:TImportNameSyntax
 	
@@ -217,7 +234,7 @@ End Interface
 
 
 
-Type TExternBlockSyntax Implements ICodeBlockElementSyntax Final
+Type TExternBlockSyntax Extends TSyntax Implements ICodeBlockElementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
 	Field ReadOnly callingConvention:TStringLiteralExpressionSyntax {nullable}
 	Field ReadOnly elements:IExternBlockElementSyntax[]
@@ -248,7 +265,7 @@ End Interface
 
 
 
-Type TExternDeclarationSyntax Implements IExternBlockElementSyntax, IDeclarationSyntax Abstract
+Type TExternDeclarationSyntax Extends TSyntax Implements IExternBlockElementSyntax, IDeclarationSyntax Abstract
 End Type
 
 
@@ -273,7 +290,7 @@ End Type
 
 
 
-Type TTypeDeclarationSyntax Implements IDeclarationSyntax Abstract
+Type TTypeDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Abstract
 End Type
 
 
@@ -362,7 +379,7 @@ End Interface
 
 
 
-Type TEnumMemberDeclarationSyntax Implements IEnumMemberSyntax, IDeclarationSyntax Final
+Type TEnumMemberDeclarationSyntax Extends TSyntax Implements IEnumMemberSyntax, IDeclarationSyntax Final
 	Field ReadOnly name:TNameSyntax
 	Field ReadOnly assignment:TAssignmentSyntax {nullable}
 
@@ -382,7 +399,7 @@ End Type
 
 
 
-Type TVisibilityDirectiveSyntax Implements ICodeBlockElementSyntax Final
+Type TVisibilityDirectiveSyntax Extends TSyntax Implements ICodeBlockElementSyntax Final
 	Field ReadOnly visibility:TSyntaxToken
 	
 	Method New(visibility:TSyntaxToken)
@@ -399,7 +416,7 @@ End Type
 
 
 
-Type TCallableDeclarationSyntax Implements IDeclarationSyntax Final
+Type TCallableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
 	Field ReadOnly operatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TCallableDeclarationNameSyntax
@@ -437,7 +454,7 @@ End Type
 
 
 
-Type TVariableDeclarationSyntax Implements IDeclarationSyntax Final
+Type TVariableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Final
 	Field ReadOnly declarationKeyword:TSyntaxToken {nullable}
 	Field ReadOnly modifiers:TVariableModifierSyntax[]
 	Field ReadOnly declarators:TVariableDeclaratorListSyntax
@@ -463,7 +480,7 @@ End Type
 
 
 
-Type TVariableDeclaratorSyntax Implements ISyntax Final
+Type TVariableDeclaratorSyntax Extends TSyntax Final
 	Field ReadOnly name:TNameSyntax
 	Field ReadOnly type_:TTypeSyntax {nullable}
 	Field ReadOnly initializer:TAssignmentSyntax {nullable}
@@ -486,7 +503,7 @@ End Type
 
 
 
-Type TModifierSyntax Implements ISyntax Abstract
+Type TModifierSyntax Extends TSyntax Abstract
 	Field ReadOnly token:TSyntaxToken
 	
 	Method New(token:TSyntaxToken)
@@ -541,7 +558,7 @@ End Type
 
 
 
-Type TLabelDeclarationSyntax Implements IDeclarationSyntax Final
+Type TLabelDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Final
 	Field ReadOnly hash:TSyntaxToken {minor}
 	Field ReadOnly name:TNameSyntax
 	
@@ -570,7 +587,7 @@ End Interface
 
 
 
-Type TIfStatementSyntax Implements IStatementSyntax Final
+Type TIfStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly condition:IExpressionSyntax
 	Field ReadOnly branches:TIfBranchSyntax[] ' always contains a Then branch
@@ -596,7 +613,7 @@ End Type
 
 
 
-Type TIfBranchSyntax Implements ISyntax Abstract
+Type TIfBranchSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -667,7 +684,7 @@ End Type
 
 
 
-Type TSelectStatementSyntax Implements IStatementSyntax Final
+Type TSelectStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly expression:IExpressionSyntax
 	Field ReadOnly statementSeparators:TStatementSeparatorSyntax[]
@@ -696,7 +713,7 @@ End Type
 
 
 
-Type TSelectBranchSyntax Implements ISyntax Abstract
+Type TSelectBranchSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -744,7 +761,7 @@ End Type
 
 
 
-Type TForStatementSyntax Implements IStatementSyntax Final
+Type TForStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly counter:TForCounterSyntax
 	Field ReadOnly eq:TSyntaxToken {minor}
@@ -776,7 +793,7 @@ End Type
 
 
 
-Type TForCounterSyntax Implements ISyntax Abstract
+Type TForCounterSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -815,7 +832,7 @@ End Type
 
 
 
-Type TForValueSequenceSyntax Implements ISyntax Abstract
+Type TForValueSequenceSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -886,7 +903,7 @@ End Type
 
 
 
-Type TWhileStatementSyntax Implements IStatementSyntax Final
+Type TWhileStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly condition:IExpressionSyntax
 	Field ReadOnly body:TCodeBlockSyntax
@@ -912,7 +929,7 @@ End Type
 
 
 
-Type TRepeatStatementSyntax Implements IStatementSyntax Final
+Type TRepeatStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly body:TCodeBlockSyntax
 	Field ReadOnly terminator:TRepeatTerminatorSyntax
@@ -935,7 +952,7 @@ End Type
 
 
 
-Type TRepeatTerminatorSyntax Implements ISyntax Abstract
+Type TRepeatTerminatorSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -977,7 +994,7 @@ End Type
 
 
 
-Type TExitStatementSyntax Implements IStatementSyntax Final
+Type TExitStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly labelName:TNameSyntax {nullable}
 	
@@ -997,7 +1014,7 @@ End Type
 
 
 
-Type TContinueStatementSyntax Implements IStatementSyntax Final
+Type TContinueStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly labelName:TNameSyntax {nullable}
 	
@@ -1017,7 +1034,7 @@ End Type
 
 
 
-Type TGotoStatementSyntax Implements IStatementSyntax Final
+Type TGotoStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly labelName:TNameSyntax
 	
@@ -1037,7 +1054,7 @@ End Type
 
 
 
-Type TReturnStatementSyntax Implements IStatementSyntax Final
+Type TReturnStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly expression:IExpressionSyntax {nullable}
 	
@@ -1057,7 +1074,7 @@ End Type
 
 
 
-Type TTryStatementSyntax Implements IStatementSyntax Final
+Type TTryStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {minor}
 	Field ReadOnly body:TCodeBlockSyntax
 	Field ReadOnly branches:TTryBranchSyntax[]
@@ -1083,7 +1100,7 @@ End Type
 
 
 
-Type TTryBranchSyntax Implements ISyntax Abstract
+Type TTryBranchSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -1131,7 +1148,7 @@ End Type
 
 
 
-Type TThrowStatementSyntax Implements IStatementSyntax Final
+Type TThrowStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly expression:IExpressionSyntax
 	
 	Method New(expression:IExpressionSyntax)
@@ -1148,7 +1165,7 @@ End Type
 
 
 
-Type TAssertStatementSyntax Implements IStatementSyntax Final
+Type TAssertStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly expression:IExpressionSyntax
 	Field ReadOnly commaOrElse:TSyntaxToken {minor}
@@ -1174,7 +1191,7 @@ End Type
 
 
 
-Type TEndStatementSyntax Implements IStatementSyntax Final
+Type TEndStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	
 	Method New(keyword:TSyntaxToken)
@@ -1191,7 +1208,7 @@ End Type
 
 
 
-Type TNativeCodeStatementSyntax Implements IStatementSyntax Final
+Type TNativeCodeStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly token:TSyntaxToken
 	
 	Method New(token:TSyntaxToken)
@@ -1208,7 +1225,7 @@ End Type
 
 
 
-Type TAssignmentStatementSyntax Implements IStatementSyntax Final
+Type TAssignmentStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly target:IExpressionSyntax ' TODO: constrain to lvalue?
 	Field ReadOnly assignment:TAssignmentSyntax
 	
@@ -1228,7 +1245,7 @@ End Type
 
 
 
-Type TParenlessCallStatementSyntax Implements IStatementSyntax Final
+Type TParenlessCallStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly expression:IExpressionSyntax
 	Field ReadOnly callOperator:TExpressionListSyntax
 	
@@ -1248,7 +1265,7 @@ End Type
 
 
 
-Type TExpressionStatementSyntax Implements IStatementSyntax Final
+Type TExpressionStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly expression:IExpressionSyntax
 	
 	Method New(expression:IExpressionSyntax)
@@ -1287,7 +1304,7 @@ End Interface
 
 
 
-Type TRangeExpressionSyntax Implements IRangeCompatibleExpressionSyntax Final
+Type TRangeExpressionSyntax Extends TSyntax Implements IRangeCompatibleExpressionSyntax Final
 	' the range operator is not a regular binary operator; its arguments are optional
 	' it can be used as binary, unary (postfix or prefix), or nullary operator
 	Field ReadOnly lhs:IRangeCompatibleExpressionSyntax {nullable}
@@ -1317,7 +1334,7 @@ End Interface
 
 
 
-Type TOrExpressionSyntax Implements IOrCompatibleExpressionSyntax Final
+Type TOrExpressionSyntax Extends TSyntax Implements IOrCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IOrCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IAndCompatibleExpressionSyntax
@@ -1345,7 +1362,7 @@ End Interface
 
 
 
-Type TAndExpressionSyntax Implements IAndCompatibleExpressionSyntax Final
+Type TAndExpressionSyntax Extends TSyntax Implements IAndCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IAndCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IRelationalCompatibleExpressionSyntax
@@ -1373,7 +1390,7 @@ End Interface
 
 
 
-Type TRelationalExpressionSyntax Implements IRelationalCompatibleExpressionSyntax Final
+Type TRelationalExpressionSyntax Extends TSyntax Implements IRelationalCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IRelationalCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IUnionCompatibleExpressionSyntax
@@ -1401,7 +1418,7 @@ End Interface
 
 
 
-Type TUnionExpressionSyntax Implements IUnionCompatibleExpressionSyntax Final
+Type TUnionExpressionSyntax Extends TSyntax Implements IUnionCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IUnionCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IIntersectionCompatibleExpressionSyntax
@@ -1429,7 +1446,7 @@ End Interface
 
 
 
-Type TIntersectionExpressionSyntax Implements IIntersectionCompatibleExpressionSyntax Final
+Type TIntersectionExpressionSyntax Extends TSyntax Implements IIntersectionCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IIntersectionCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:ISumCompatibleExpressionSyntax
@@ -1457,7 +1474,7 @@ End Interface
 
 
 
-Type TSumExpressionSyntax Implements ISumCompatibleExpressionSyntax Final
+Type TSumExpressionSyntax Extends TSyntax Implements ISumCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:ISumCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IProductCompatibleExpressionSyntax
@@ -1485,7 +1502,7 @@ End Interface
 
 
 
-Type TProductExpressionSyntax Implements IProductCompatibleExpressionSyntax Final
+Type TProductExpressionSyntax Extends TSyntax Implements IProductCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IProductCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IExponentialCompatibleExpressionSyntax
@@ -1513,7 +1530,7 @@ End Interface
 
 
 
-Type TExponentialExpressionSyntax Implements IExponentialCompatibleExpressionSyntax Final
+Type TExponentialExpressionSyntax Extends TSyntax Implements IExponentialCompatibleExpressionSyntax Final
 	Field ReadOnly lhs:IExponentialCompatibleExpressionSyntax
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly rhs:IPrefixCompatibleExpressionSyntax
@@ -1541,7 +1558,7 @@ End Interface
 
 
 
-Type TTypeCastExpressionSyntax Implements IPrefixCompatibleExpressionSyntax Final
+Type TTypeCastExpressionSyntax Extends TSyntax Implements IPrefixCompatibleExpressionSyntax Final
 	Field ReadOnly targetType:TTypeSyntax
 	Field ReadOnly expression:IPrefixCompatibleExpressionSyntax
 	
@@ -1561,7 +1578,7 @@ End Type
 
 
 
-Type TPrefixOperatorExpressionSyntax Implements IPrefixCompatibleExpressionSyntax Final
+Type TPrefixOperatorExpressionSyntax Extends TSyntax Implements IPrefixCompatibleExpressionSyntax Final
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly expression:IPrefixCompatibleExpressionSyntax
 	
@@ -1586,7 +1603,7 @@ End Interface
 
 
 
-Type TMemberAccessExpressionSyntax Implements IPostfixCompatibleExpressionSyntax Final
+Type TMemberAccessExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
 	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax {nullable}
 	Field ReadOnly dot:TSyntaxToken {minor}
 	Field ReadOnly memberName:TNameSyntax
@@ -1609,7 +1626,7 @@ End Type
 
 
 
-Type TIndexExpressionSyntax Implements IPostfixCompatibleExpressionSyntax Final
+Type TIndexExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
 	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax
 	Field ReadOnly indexOperator:TBracketExpressionListSyntax
 	
@@ -1629,7 +1646,7 @@ End Type
 
 
 
-Type TCallExpressionSyntax Implements IPostfixCompatibleExpressionSyntax Final
+Type TCallExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
 	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax
 	Field ReadOnly callOperator:TParenExpressionListSyntax
 	
@@ -1649,7 +1666,7 @@ End Type
 
 
 
-Type TTypeAssertionExpressionSyntax Implements IPostfixCompatibleExpressionSyntax Final
+Type TTypeAssertionExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
 	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax
 	Field ReadOnly type_:TTypeSyntax
 	
@@ -1674,7 +1691,7 @@ End Interface
 
 
 
-Type TParenExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TParenExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly lparen:TSyntaxToken {minor}
 	Field ReadOnly expression:IExpressionSyntax
 	Field ReadOnly rparen:TSyntaxToken {minor}
@@ -1697,7 +1714,7 @@ End Type
 
 
 
-Type TNewExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TNewExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly type_:TTypeSyntax ' TODO: separate brackets with dimensions from the type? then TArrayTypeModifierSyntax doesn't need to have a TBracketExpressionList
 	Field ReadOnly callOperator:TParenExpressionListSyntax {nullable}
@@ -1720,7 +1737,7 @@ End Type
 
 
 
-Type TSelfExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TSelfExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1737,7 +1754,7 @@ End Type
 
 
 
-Type TSuperExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TSuperExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1754,7 +1771,7 @@ End Type
 
 
 
-Type TNullExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TNullExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1771,7 +1788,7 @@ End Type
 
 
 
-Type TTrueExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TTrueExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1788,7 +1805,7 @@ End Type
 
 
 
-Type TFalseExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TFalseExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1805,7 +1822,7 @@ End Type
 
 
 
-Type TPiExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TPiExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -1822,7 +1839,7 @@ End Type
 
 
 
-Type TNameExpressionSyntax Implements IPrimaryExpressionSyntax Final
+Type TNameExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Final
 	Field ReadOnly name:TNameSyntax
 	
 	Method New(name:TNameSyntax)
@@ -1839,7 +1856,7 @@ End Type
 
 
 
-Type TLiteralExpressionSyntax Implements IPrimaryExpressionSyntax Abstract
+Type TLiteralExpressionSyntax Extends TSyntax Implements IPrimaryExpressionSyntax Abstract
 End Type
 
 
@@ -1905,7 +1922,7 @@ End Type
 
 
 
-Type TTypeSyntax Implements ISyntax Final
+Type TTypeSyntax Extends TSyntax Final
 	Field ReadOnly colon:TSyntaxToken {nullable minor}
 	Field ReadOnly base:TTypeBaseSyntax {nullable} ' should only be null in the case of a void-returning callable type
 	Field ReadOnly suffixes:TTypeSuffixSyntax[]
@@ -1928,7 +1945,7 @@ End Type
 
 
 
-Type TTypeBaseSyntax Implements ISyntax Abstract
+Type TTypeBaseSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -1984,7 +2001,7 @@ End Type
 
 
 
-Type TTypeSuffixSyntax Implements ISyntax Abstract
+Type TTypeSuffixSyntax Extends TSyntax Abstract
 End Type
 
 
@@ -2069,7 +2086,7 @@ End Type
 
 
 
-Type TVariableDeclaratorListSyntax Implements ISyntax Final
+Type TVariableDeclaratorListSyntax Extends TSyntax Final
 	Field ReadOnly elements:TVariableDeclaratorListElementSyntax[]
 	
 	Method New(elements:TVariableDeclaratorListElementSyntax[])
@@ -2086,7 +2103,7 @@ End Type
 
 
 
-Type TVariableDeclaratorListElementSyntax Implements ISyntax Final
+Type TVariableDeclaratorListElementSyntax Extends TSyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
 	Field ReadOnly declarator:TVariableDeclaratorSyntax {nullable}
 	
@@ -2106,7 +2123,7 @@ End Type
 
 
 
-Type TParenExpressionListSyntax Implements ISyntax Final
+Type TParenExpressionListSyntax Extends TSyntax Final
 	Field ReadOnly lparen:TSyntaxToken {minor}
 	Field ReadOnly expressionList:TExpressionListSyntax
 	Field ReadOnly rparen:TSyntaxToken {minor}
@@ -2129,7 +2146,7 @@ End Type
 
 
 
-Type TBracketExpressionListSyntax Implements ISyntax Final
+Type TBracketExpressionListSyntax Extends TSyntax Final
 	Field ReadOnly lbracket:TSyntaxToken {minor}
 	Field ReadOnly expressionList:TExpressionListSyntax
 	Field ReadOnly rbracket:TSyntaxToken {minor}
@@ -2152,7 +2169,7 @@ End Type
 
 
 
-Type TExpressionListSyntax Implements ISyntax Final
+Type TExpressionListSyntax Extends TSyntax Final
 	Field ReadOnly elements:TExpressionListElementSyntax[]
 	
 	Method New(elements:TExpressionListElementSyntax[])
@@ -2169,7 +2186,7 @@ End Type
 
 
 
-Type TExpressionListElementSyntax Implements ISyntax Final
+Type TExpressionListElementSyntax Extends TSyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
 	Field ReadOnly expression:IExpressionSyntax {nullable}
 	
@@ -2189,7 +2206,7 @@ End Type
 
 
 
-Type TTypeListSyntax Implements ISyntax Final
+Type TTypeListSyntax Extends TSyntax Final
 	Field ReadOnly elements:TTypeListElementSyntax[]
 	
 	Method New(elements:TTypeListElementSyntax[])
@@ -2206,7 +2223,7 @@ End Type
 
 
 
-Type TTypeListElementSyntax Implements ISyntax Final
+Type TTypeListElementSyntax Extends TSyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
 	Field ReadOnly type_:TTypeSyntax {nullable}
 	
@@ -2226,7 +2243,7 @@ End Type
 
 
 
-Type TQualifiedNameListSyntax Implements ISyntax Final
+Type TQualifiedNameListSyntax Extends TSyntax Final
 	Field ReadOnly elements:TQualifiedNameListElementSyntax[]
 	
 	Method New(elements:TQualifiedNameListElementSyntax[])
@@ -2243,7 +2260,7 @@ End Type
 
 
 
-Type TQualifiedNameListElementSyntax Implements ISyntax Final
+Type TQualifiedNameListElementSyntax Extends TSyntax Final
 	Field ReadOnly comma:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TQualifiedNameSyntax {nullable}
 	
@@ -2263,7 +2280,7 @@ End Type
 
 
 
-Type TMetaDataSyntax Implements ISyntax Final
+Type TMetaDataSyntax Extends TSyntax Final
 	Field ReadOnly lbrace:TSyntaxToken {minor}
 	Field ReadOnly elements:TMetaDataElementSyntax[]
 	Field ReadOnly rbrace:TSyntaxToken {minor}
@@ -2286,7 +2303,7 @@ End Type
 
 
 
-Type TMetaDataElementSyntax Implements ISyntax Final
+Type TMetaDataElementSyntax Extends TSyntax Final
 	Field ReadOnly key:TNameSyntax
 	Field ReadOnly eq:TSyntaxToken {nullable minor}
 	Field ReadOnly value:IExpressionSyntax {nullable}
@@ -2309,7 +2326,7 @@ End Type
 
 
 
-Type TNameSyntax Implements ISyntax Final
+Type TNameSyntax Extends TSyntax Final
 	Field ReadOnly identifier:TSyntaxToken
 	
 	Method New(identifier:TSyntaxToken)
@@ -2326,7 +2343,7 @@ End Type
 
 
 
-Type TQualifiedNameSyntax Implements ISyntax Final
+Type TQualifiedNameSyntax Extends TSyntax Final
 	Field ReadOnly parts:TQualifiedNamePartSyntax[]
 	
 	Method New(parts:TQualifiedNamePartSyntax[])
@@ -2343,7 +2360,7 @@ End Type
 
 
 
-Type TQualifiedNamePartSyntax Implements ISyntax Final
+Type TQualifiedNamePartSyntax Extends TSyntax Final
 	Field ReadOnly dot:TSyntaxToken {nullable minor}
 	Field ReadOnly identifier:TSyntaxToken {nullable}
 	
@@ -2363,7 +2380,7 @@ End Type
 
 
 
-Type TImportNameSyntax Implements ISyntax Final
+Type TImportNameSyntax Extends TSyntax Final
 	' exactly one field must be non-null
 	Field ReadOnly moduleName:TQualifiedNameSyntax {nullable}
 	Field ReadOnly fileName:TStringLiteralExpressionSyntax {nullable}
@@ -2386,7 +2403,7 @@ End Type
 
 
 
-Type TCallableDeclarationNameSyntax Implements ISyntax Final
+Type TCallableDeclarationNameSyntax Extends TSyntax Final
 	' exactly one field must be non-null
 	Field ReadOnly identifierName:TNameSyntax {nullable}
 	Field ReadOnly keywordName:TSyntaxToken {nullable}
@@ -2416,7 +2433,7 @@ End Type
 
 
 
-Type TOperatorSyntax Implements ISyntax Final
+Type TOperatorSyntax Extends TSyntax Final
 	Field ReadOnly tokens:TSyntaxToken[] ' this should not be empty, will usually contain one element
 	
 	Method New(tokens:TSyntaxToken[])
@@ -2433,7 +2450,7 @@ End Type
 
 
 
-Type TContextualKeywordSyntax Implements ISyntax Final
+Type TContextualKeywordSyntax Extends TSyntax Final
 	Field ReadOnly canonicalValue:String
 	Field ReadOnly identifier:TSyntaxToken
 		
@@ -2452,7 +2469,7 @@ End Type
 
 
 
-Type TAssignmentSyntax Implements ISyntax Final
+Type TAssignmentSyntax Extends TSyntax Final
 	Field ReadOnly op:TOperatorSyntax
 	Field ReadOnly expression:IExpressionSyntax
 	
@@ -2472,7 +2489,7 @@ End Type
 
 
 
-Type TStatementSeparatorSyntax Implements ICodeHeaderElementSyntax, ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax Final
+Type TStatementSeparatorSyntax Extends TSyntax Implements ICodeHeaderElementSyntax, ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax Final
 	Field ReadOnly token:TSyntaxToken {minor}
 	
 	Method New(token:TSyntaxToken)
@@ -2489,7 +2506,7 @@ End Type
 
 
 
-Type TErrorSyntax Implements ICodeHeaderElementSyntax, ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax Final
+Type TErrorSyntax Extends TSyntax Implements ICodeHeaderElementSyntax, ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax Final
 	Field ReadOnly tokens:TSyntaxToken[] {minor}
 	
 	Method New(tokens:TSyntaxToken[])

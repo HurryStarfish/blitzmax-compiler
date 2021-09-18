@@ -19,6 +19,10 @@ Type TSyntaxToken Implements ISyntaxOrSyntaxToken Final
 		Return lexerToken.kind
 	End Method
 	
+	Method CodeRange:SCodeRange() Override
+		Return lexerToken.CodeRange()
+	End Method
+	
 	Method ToString:String() Override
 		Local trivia:String
 		' TODO

@@ -312,7 +312,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method GenerateMissingToken:TSyntaxToken(kind:TTokenKind, value:String)
-		Local missingTokenLocation:SCodeLocation = currentToken.lexerToken.location
+		Local missingTokenLocation:SCodeLocation = currentToken.lexerToken.codeLocation
 		Local missingToken:TSyntaxToken = New TSyntaxToken(New TLexerToken(value, kind, missingTokenLocation, True), [], [])
 		Return missingToken
 	End Method

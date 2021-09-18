@@ -1,5 +1,8 @@
 SuperStrict
+Import "../lexer/CodeRange.bmx"
 
 
 
-Interface ISyntaxOrSyntaxToken End Interface
+Interface ISyntaxOrSyntaxToken
+	Method CodeRange:SCodeRange()
+End Interface

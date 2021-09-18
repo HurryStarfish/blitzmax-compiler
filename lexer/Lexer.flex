@@ -5,7 +5,7 @@
 %{
 #include <brl.mod/blitz.mod/blitz.h>
 
-static char* strndup(const char* str, size_t size) {
+static char* strndup_(const char* str, size_t size) { // strndup might or might now be available in string.h
 	char* newstr = (char*)malloc(sizeof(char) * (size + 1));
 	memcpy(newstr, str, size);
 	newstr[size] = '\0';
@@ -61,7 +61,7 @@ void resetFilePosition(FilePosition* pos) {
 }
 
 #define STOREAS(tKind) {                        \
-	token->value     = strndup(yytext, yyleng); \
+	token->value     = strndup_(yytext, yyleng);\
 	token->tokenKind = strdup(tKind);           \
 	token->filePath  = strdup(""); /*TODO*/     \
 	token->line      = pos->currentLine;        \
@@ -80,6 +80,9 @@ void resetFilePosition(FilePosition* pos) {
 
 /* exclusive start conditions */
 %x REMCOMMENT_FIRST_LINE REMCOMMENT
+
+NEWLINE (\n|\r\n|\r) /* TLexerToken.CodeRange must be kept in sync with the token kinds this is used in */
+NEWLINE_CHARS \r\n
 
 %%
 
@@ -276,8 +279,8 @@ SizeOf STOREAS("SizeOf")
 
 
 
-[ \t]*  STOREAS("Whitespace")
-[\n]    STOREAS("Linebreak")
+[ \t]*    STOREAS("Whitespace")
+{NEWLINE} STOREAS("Linebreak")
 
 
 
@@ -286,19 +289,19 @@ SizeOf STOREAS("SizeOf")
 \%[0-1]+                        STOREAS("BinIntLiteral")
 [0-9]*\.[0-9]+([eE]-?[0-9]+)?   |
 [0-9]+[eE]-?[0-9]+              STOREAS("FloatLiteral")
-\"[^\"\n]*\"                    STOREAS("StringLiteral")
+\"[^\"{NEWLINE_CHARS}]*\"       STOREAS("StringLiteral")
 
 '!.*                            STOREAS("NativeCode")
 
 '.*                             STOREAS("Comment")
 
-Rem                                                  BEGIN(REMCOMMENT_FIRST_LINE); STOREAS("Rem")
-<REMCOMMENT_FIRST_LINE>.*\n                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
-<REMCOMMENT>[ \t]*                                   BEGIN(REMCOMMENT);            STOREAS("RemComment")
-<REMCOMMENT>[ \t]*End[ \t]?Rem/(\n)                  BEGIN(INITIAL);               STOREAS("End Rem")
-<REMCOMMENT>[ \t]*End[ \t]?Rem/([^a-zA-Z0-9_\n].*\n) BEGIN(INITIAL);               STOREAS("End Rem")
-<REMCOMMENT>.*\n                                     BEGIN(REMCOMMENT);            STOREAS("RemComment")
-End[ \t]?Rem                     STOREAS("End Rem")
+Rem                                                         BEGIN(REMCOMMENT_FIRST_LINE); STOREAS("Rem")
+<REMCOMMENT_FIRST_LINE>.*{NEWLINE}                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
+<REMCOMMENT>[ \t]*                                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
+<REMCOMMENT>[ \t]*End[ \t]?Rem/{NEWLINE}                    BEGIN(INITIAL);               STOREAS("End Rem")
+<REMCOMMENT>[ \t]*End[ \t]?Rem/([^a-zA-Z0-9_\n].*{NEWLINE}) BEGIN(INITIAL);               STOREAS("End Rem")
+<REMCOMMENT>.*{NEWLINE}                                     BEGIN(REMCOMMENT);            STOREAS("RemComment")
+End[ \t]?Rem                    STOREAS("End Rem")
 
 
 
@@ -306,7 +309,7 @@ End[ \t]?Rem                     STOREAS("End Rem")
 
 
 
-<*>.|\n ERROR
+<*>. STOREAS("InvalidCode")
 
 
 

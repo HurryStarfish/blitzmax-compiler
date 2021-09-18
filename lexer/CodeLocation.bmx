@@ -12,6 +12,11 @@ Struct SCodeLocation
 		Self.filePath = filePath
 		Self.line = line
 		Self.column = column
+		Assert IsValid() Else "Invalid location" ' may only use default constructor or Null for this
+	End Method
+	
+	Method IsValid:Int()
+		Return line > 0 And column > 0 And filePath
 	End Method
 	
 	Method ToString:String()

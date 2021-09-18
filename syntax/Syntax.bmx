@@ -15,12 +15,29 @@ Public
 Type TSyntax Implements ISyntax Abstract
 	Method CodeRange:SCodeRange() Override Final
 		Local children:ISyntaxOrSyntaxToken[] = GetChildren()
-		Local firstChild:ISyntaxOrSyntaxToken = children[0]
-		If children.length = 1 Then
-			Return firstChild.CodeRange()
+		If children.length = 0 Then
+			Return Null
 		Else
-			Local lastChild:ISyntaxOrSyntaxToken = children[children.length - 1]
-			Return New SCodeRange(firstChild.CodeRange().startLocation, lastChild.CodeRange().endLocation)
+			If children.length = 1 Then
+				Return children[0].CodeRange()
+			Else
+				Local firstValidChildRange:SCodeRange
+				Local lastValidChildRange:SCodeRange
+				Local c:Int
+				For c = 0 To children.length - 1
+					Local r:SCodeRange = children[c].CodeRange()
+					If r.IsValid() Then firstValidChildRange = r; Exit
+				Next
+				If c = children.length Then
+					Return Null ' no child with a valid range
+				Else
+					For c = children.length - 1 To c Step -1
+						Local r:SCodeRange = children[c].CodeRange()
+						If r.IsValid() Then lastValidChildRange = r; Exit
+					Next
+					Return New SCodeRange(firstValidChildRange.startLocation, lastValidChildRange.endLocation)
+				End If
+			End If
 		End If
 	End Method
 	
@@ -2543,6 +2560,12 @@ Function Verify(syntax:ISyntax)
 			Next
 		End If
 	Next
+	Local hasChildren:Int = False
+	For Local c:ISyntaxOrSyntaxToken = EachIn syntax.GetChildren()
+		hasChildren = True
+		Exit
+	Next
+	'If Not hasChildren Then RuntimeError t.Name() + " instance has no non-null children"
 	?
 End Function
 
@@ -2552,8 +2575,12 @@ Function ChildrenToArray:ISyntaxOrSyntaxToken[](c1:Object = Null, c2:Object = Nu
 	Function GetCount:Int(c:Object)
 		Local cAsArray:ISyntaxOrSyntaxToken[] = ISyntaxOrSyntaxToken[](c)
 		If cAsArray Then
-			Return cAsArray.length
-		Else If c Then
+			Local nonNullElements:Int = 0
+			For Local i:Int = 0 Until cAsArray.length
+				If cAsArray[i] Then nonNullElements :+ 1
+			Next
+			Return nonNullElements
+		Else If ISyntaxOrSyntaxToken(c) Then ' need this cast to filter out empty arrays
 			Return 1
 		Else
 			Return 0
@@ -2565,8 +2592,10 @@ Function ChildrenToArray:ISyntaxOrSyntaxToken[](c1:Object = Null, c2:Object = Nu
 		Local cAsSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken = ISyntaxOrSyntaxToken(c)
 		If cAsArray Then
 			For Local i:Int = 0 Until cAsArray.length
-				a[currentIndex] = cAsArray[i]
-				currentIndex :+ 1
+				If cAsArray[i] Then
+					a[currentIndex] = cAsArray[i]
+					currentIndex :+ 1
+				End If
 			Next
 		Else If cAsSyntaxOrSyntaxToken Then
 			a[currentIndex] = cAsSyntaxOrSyntaxToken

@@ -5,7 +5,7 @@ Import "CodeRange.bmx"
 
 
 
-Global EOFToken:TLexerToken = New TLexerToken(Null, TTokenKind.Eof, New SCodeLocation("", 0, 0))
+Global EOFToken:TLexerToken = New TLexerToken(Null, TTokenKind.Eof, Null)
 
 Type TLexerToken Final
 	Field ReadOnly value:String
@@ -25,6 +25,8 @@ Type TLexerToken Final
 	End Method
 	
 	Method CodeRange:SCodeRange()
+		If Not codeLocation.IsValid() Then Return New SCodeRange(codeLocation, codeLocation)
+		
 		Local startLocation:SCodeLocation = codeLocation
 		Local endLocation:SCodeLocation
 		If missing Then

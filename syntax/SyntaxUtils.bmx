@@ -21,7 +21,8 @@ For Local t:TTypeId = EachIn TTypeId.EnumTypes()
 		' verify presence of TSyntaxToken field
 		Local hasSyntaxTokenField:Int = False
 		For Local f:TField = EachIn GetAllFields(t)
-			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True; Exit
+			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True
+			' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
 		Next
 		If Not hasSyntaxTokenField Then RuntimeError "Type " + t.Name() + " implements ISyntax and must have a TSyntaxToken field"
 		' verify correct use of {nullable}

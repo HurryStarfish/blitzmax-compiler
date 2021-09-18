@@ -81,8 +81,9 @@ void resetFilePosition(FilePosition* pos) {
 /* exclusive start conditions */
 %x REMCOMMENT_FIRST_LINE REMCOMMENT
 
-NEWLINE (\n|\r\n|\r) /* TLexerToken.CodeRange must be kept in sync with the token kinds this is used in */
+NEWLINE \n|\r\n|\r
 NEWLINE_CHARS \r\n
+/* TLexerToken.CodeRange must be kept in sync with the token kinds newlines are used in */
 
 %%
 
@@ -280,7 +281,7 @@ SizeOf STOREAS("SizeOf")
 
 
 [ \t]*    STOREAS("Whitespace")
-{NEWLINE} STOREAS("Linebreak")
+{NEWLINE}   STOREAS("Linebreak")
 
 
 

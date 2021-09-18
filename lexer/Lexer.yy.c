@@ -960,7 +960,8 @@ void resetFilePosition(FilePosition* pos) {
 #define REMCOMMENT_FIRST_LINE 1
 #define REMCOMMENT 2
 
-#line 964 "Lexer.yy.c"
+/* TLexerToken.CodeRange must be kept in sync with the token kinds newlines are used in */
+#line 965 "Lexer.yy.c"
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -1111,14 +1112,14 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
 
-#line 87 "Lexer.flex"
+#line 88 "Lexer.flex"
 
 
 
 
 	/* keep these in sync with LexerTokenKind.bmx */
 
-#line 1122 "Lexer.yy.c"
+#line 1123 "Lexer.yy.c"
 
 	if ( yy_init )
 		{
@@ -1224,896 +1225,896 @@ do_action:	/* This label is used only to access EOF actions. */
 	{ /* beginning of action switch */
 case 1:
 YY_RULE_SETUP
-#line 93 "Lexer.flex"
+#line 94 "Lexer.flex"
 STOREAS("Include")
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 95 "Lexer.flex"
+#line 96 "Lexer.flex"
 STOREAS("Strict")
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 96 "Lexer.flex"
+#line 97 "Lexer.flex"
 STOREAS("SuperStrict")
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 98 "Lexer.flex"
+#line 99 "Lexer.flex"
 STOREAS("Framework")
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 99 "Lexer.flex"
+#line 100 "Lexer.flex"
 STOREAS("Import")
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 100 "Lexer.flex"
+#line 101 "Lexer.flex"
 STOREAS("Module")
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 101 "Lexer.flex"
+#line 102 "Lexer.flex"
 STOREAS("ModuleInfo")
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 103 "Lexer.flex"
+#line 104 "Lexer.flex"
 STOREAS("Incbin")
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 104 "Lexer.flex"
+#line 105 "Lexer.flex"
 STOREAS("IncbinPtr")
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 105 "Lexer.flex"
+#line 106 "Lexer.flex"
 STOREAS("IncbinLen")
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 107 "Lexer.flex"
+#line 108 "Lexer.flex"
 STOREAS("True")
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 108 "Lexer.flex"
+#line 109 "Lexer.flex"
 STOREAS("False")
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 109 "Lexer.flex"
+#line 110 "Lexer.flex"
 STOREAS("Pi")
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 110 "Lexer.flex"
+#line 111 "Lexer.flex"
 STOREAS("Null")
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 111 "Lexer.flex"
+#line 112 "Lexer.flex"
 STOREAS("Self")
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 113 "Lexer.flex"
+#line 114 "Lexer.flex"
 STOREAS("Byte")
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 114 "Lexer.flex"
+#line 115 "Lexer.flex"
 STOREAS("Short")
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 115 "Lexer.flex"
+#line 116 "Lexer.flex"
 STOREAS("Int")
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 116 "Lexer.flex"
+#line 117 "Lexer.flex"
 STOREAS("UInt")
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 117 "Lexer.flex"
+#line 118 "Lexer.flex"
 STOREAS("Long")
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 118 "Lexer.flex"
+#line 119 "Lexer.flex"
 STOREAS("ULong")
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 119 "Lexer.flex"
+#line 120 "Lexer.flex"
 STOREAS("Size_T")
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 120 "Lexer.flex"
+#line 121 "Lexer.flex"
 STOREAS("Float")
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 121 "Lexer.flex"
+#line 122 "Lexer.flex"
 STOREAS("Double")
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 122 "Lexer.flex"
+#line 123 "Lexer.flex"
 STOREAS("String")
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 123 "Lexer.flex"
+#line 124 "Lexer.flex"
 STOREAS("Object")
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 124 "Lexer.flex"
+#line 125 "Lexer.flex"
 STOREAS("LParam")
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 125 "Lexer.flex"
+#line 126 "Lexer.flex"
 STOREAS("WParam")
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 126 "Lexer.flex"
+#line 127 "Lexer.flex"
 STOREAS("Float64")
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 127 "Lexer.flex"
+#line 128 "Lexer.flex"
 STOREAS("Float128")
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 128 "Lexer.flex"
+#line 129 "Lexer.flex"
 STOREAS("Double128")
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 129 "Lexer.flex"
+#line 130 "Lexer.flex"
 STOREAS("Int128")
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 131 "Lexer.flex"
+#line 132 "Lexer.flex"
 STOREAS("Ptr")
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 132 "Lexer.flex"
+#line 133 "Lexer.flex"
 STOREAS("Var")
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 134 "Lexer.flex"
+#line 135 "Lexer.flex"
 STOREAS("If")
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 135 "Lexer.flex"
+#line 136 "Lexer.flex"
 STOREAS("End If")
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 136 "Lexer.flex"
+#line 137 "Lexer.flex"
 STOREAS("Then")
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 137 "Lexer.flex"
+#line 138 "Lexer.flex"
 STOREAS("Else")
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 138 "Lexer.flex"
+#line 139 "Lexer.flex"
 STOREAS("Else If")
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 139 "Lexer.flex"
+#line 140 "Lexer.flex"
 STOREAS("For")
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 140 "Lexer.flex"
+#line 141 "Lexer.flex"
 STOREAS("To")
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 141 "Lexer.flex"
+#line 142 "Lexer.flex"
 STOREAS("Step")
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 142 "Lexer.flex"
+#line 143 "Lexer.flex"
 STOREAS("Next")
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 143 "Lexer.flex"
+#line 144 "Lexer.flex"
 STOREAS("EachIn")
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 144 "Lexer.flex"
+#line 145 "Lexer.flex"
 STOREAS("While")
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 145 "Lexer.flex"
+#line 146 "Lexer.flex"
 STOREAS("Wend")
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 146 "Lexer.flex"
+#line 147 "Lexer.flex"
 STOREAS("Wend")
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 147 "Lexer.flex"
+#line 148 "Lexer.flex"
 STOREAS("Repeat")
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 148 "Lexer.flex"
+#line 149 "Lexer.flex"
 STOREAS("Until")
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 149 "Lexer.flex"
+#line 150 "Lexer.flex"
 STOREAS("Forever")
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 150 "Lexer.flex"
+#line 151 "Lexer.flex"
 STOREAS("Select")
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 151 "Lexer.flex"
+#line 152 "Lexer.flex"
 STOREAS("End Select")
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 152 "Lexer.flex"
+#line 153 "Lexer.flex"
 STOREAS("Case")
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 153 "Lexer.flex"
+#line 154 "Lexer.flex"
 STOREAS("Default")
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 155 "Lexer.flex"
+#line 156 "Lexer.flex"
 STOREAS("Exit")
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 156 "Lexer.flex"
+#line 157 "Lexer.flex"
 STOREAS("Continue")
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 157 "Lexer.flex"
+#line 158 "Lexer.flex"
 STOREAS("Return")
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 158 "Lexer.flex"
+#line 159 "Lexer.flex"
 STOREAS("Goto")
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 159 "Lexer.flex"
+#line 160 "Lexer.flex"
 STOREAS("Try")
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 160 "Lexer.flex"
+#line 161 "Lexer.flex"
 STOREAS("End Try")
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 161 "Lexer.flex"
+#line 162 "Lexer.flex"
 STOREAS("Catch")
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 162 "Lexer.flex"
+#line 163 "Lexer.flex"
 STOREAS("Finally")
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 163 "Lexer.flex"
+#line 164 "Lexer.flex"
 STOREAS("Throw")
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 164 "Lexer.flex"
+#line 165 "Lexer.flex"
 STOREAS("Assert")
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 165 "Lexer.flex"
+#line 166 "Lexer.flex"
 STOREAS("End")
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 167 "Lexer.flex"
+#line 168 "Lexer.flex"
 STOREAS("Alias")
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 168 "Lexer.flex"
+#line 169 "Lexer.flex"
 STOREAS("Const")
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 169 "Lexer.flex"
+#line 170 "Lexer.flex"
 STOREAS("Global")
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 170 "Lexer.flex"
+#line 171 "Lexer.flex"
 STOREAS("Local")
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 171 "Lexer.flex"
+#line 172 "Lexer.flex"
 STOREAS("Field")
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 172 "Lexer.flex"
+#line 173 "Lexer.flex"
 STOREAS("Function")
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 173 "Lexer.flex"
+#line 174 "Lexer.flex"
 STOREAS("End Function")
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 174 "Lexer.flex"
+#line 175 "Lexer.flex"
 STOREAS("Method")
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 175 "Lexer.flex"
+#line 176 "Lexer.flex"
 STOREAS("End Method")
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 177 "Lexer.flex"
+#line 178 "Lexer.flex"
 STOREAS("Type")
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
-#line 178 "Lexer.flex"
+#line 179 "Lexer.flex"
 STOREAS("End Type")
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 179 "Lexer.flex"
+#line 180 "Lexer.flex"
 STOREAS("Struct")
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 180 "Lexer.flex"
+#line 181 "Lexer.flex"
 STOREAS("End Struct")
 	YY_BREAK
 case 79:
 YY_RULE_SETUP
-#line 181 "Lexer.flex"
+#line 182 "Lexer.flex"
 STOREAS("Interface")
 	YY_BREAK
 case 80:
 YY_RULE_SETUP
-#line 182 "Lexer.flex"
+#line 183 "Lexer.flex"
 STOREAS("End Interface")
 	YY_BREAK
 case 81:
 YY_RULE_SETUP
-#line 183 "Lexer.flex"
+#line 184 "Lexer.flex"
 STOREAS("Enum")
 	YY_BREAK
 case 82:
 YY_RULE_SETUP
-#line 184 "Lexer.flex"
+#line 185 "Lexer.flex"
 STOREAS("End Enum")
 	YY_BREAK
 case 83:
 YY_RULE_SETUP
-#line 186 "Lexer.flex"
+#line 187 "Lexer.flex"
 STOREAS("Extends")
 	YY_BREAK
 case 84:
 YY_RULE_SETUP
-#line 187 "Lexer.flex"
+#line 188 "Lexer.flex"
 STOREAS("Implements")
 	YY_BREAK
 case 85:
 YY_RULE_SETUP
-#line 188 "Lexer.flex"
+#line 189 "Lexer.flex"
 STOREAS("Super")
 	YY_BREAK
 case 86:
 YY_RULE_SETUP
-#line 190 "Lexer.flex"
+#line 191 "Lexer.flex"
 STOREAS("ReadOnly")
 	YY_BREAK
 case 87:
 YY_RULE_SETUP
-#line 192 "Lexer.flex"
+#line 193 "Lexer.flex"
 STOREAS("Abstract")
 	YY_BREAK
 case 88:
 YY_RULE_SETUP
-#line 193 "Lexer.flex"
+#line 194 "Lexer.flex"
 STOREAS("Final")
 	YY_BREAK
 case 89:
 YY_RULE_SETUP
-#line 194 "Lexer.flex"
+#line 195 "Lexer.flex"
 STOREAS("Override")
 	YY_BREAK
 case 90:
 YY_RULE_SETUP
-#line 195 "Lexer.flex"
+#line 196 "Lexer.flex"
 STOREAS("Operator")
 	YY_BREAK
 case 91:
 YY_RULE_SETUP
-#line 196 "Lexer.flex"
+#line 197 "Lexer.flex"
 STOREAS("Inline")
 	YY_BREAK
 case 92:
 YY_RULE_SETUP
-#line 198 "Lexer.flex"
+#line 199 "Lexer.flex"
 STOREAS("Extern")
 	YY_BREAK
 case 93:
 YY_RULE_SETUP
-#line 199 "Lexer.flex"
+#line 200 "Lexer.flex"
 STOREAS("End Extern")
 	YY_BREAK
 case 94:
 YY_RULE_SETUP
-#line 200 "Lexer.flex"
+#line 201 "Lexer.flex"
 STOREAS("Export")
 	YY_BREAK
 case 95:
 YY_RULE_SETUP
-#line 202 "Lexer.flex"
+#line 203 "Lexer.flex"
 STOREAS("New")
 	YY_BREAK
 case 96:
 YY_RULE_SETUP
-#line 203 "Lexer.flex"
+#line 204 "Lexer.flex"
 STOREAS("Delete")
 	YY_BREAK
 case 97:
 YY_RULE_SETUP
-#line 204 "Lexer.flex"
+#line 205 "Lexer.flex"
 STOREAS("Release")
 	YY_BREAK
 case 98:
 YY_RULE_SETUP
-#line 206 "Lexer.flex"
+#line 207 "Lexer.flex"
 STOREAS("Public")
 	YY_BREAK
 case 99:
 YY_RULE_SETUP
-#line 207 "Lexer.flex"
+#line 208 "Lexer.flex"
 STOREAS("Protected")
 	YY_BREAK
 case 100:
 YY_RULE_SETUP
-#line 208 "Lexer.flex"
+#line 209 "Lexer.flex"
 STOREAS("Private")
 	YY_BREAK
 case 101:
 YY_RULE_SETUP
-#line 210 "Lexer.flex"
+#line 211 "Lexer.flex"
 STOREAS("DefData")
 	YY_BREAK
 case 102:
 YY_RULE_SETUP
-#line 211 "Lexer.flex"
+#line 212 "Lexer.flex"
 STOREAS("ReadData")
 	YY_BREAK
 case 103:
 YY_RULE_SETUP
-#line 212 "Lexer.flex"
+#line 213 "Lexer.flex"
 STOREAS("RestoreData")
 	YY_BREAK
 case 104:
 YY_RULE_SETUP
-#line 214 "Lexer.flex"
+#line 215 "Lexer.flex"
 STOREAS("And")
 	YY_BREAK
 case 105:
 YY_RULE_SETUP
-#line 215 "Lexer.flex"
+#line 216 "Lexer.flex"
 STOREAS("Or")
 	YY_BREAK
 case 106:
 YY_RULE_SETUP
-#line 216 "Lexer.flex"
+#line 217 "Lexer.flex"
 STOREAS("Not")
 	YY_BREAK
 case 107:
 YY_RULE_SETUP
-#line 217 "Lexer.flex"
+#line 218 "Lexer.flex"
 STOREAS("Mod")
 	YY_BREAK
 case 108:
 YY_RULE_SETUP
-#line 218 "Lexer.flex"
+#line 219 "Lexer.flex"
 STOREAS("Shl")
 	YY_BREAK
 case 109:
 YY_RULE_SETUP
-#line 219 "Lexer.flex"
+#line 220 "Lexer.flex"
 STOREAS("Shr")
 	YY_BREAK
 case 110:
 YY_RULE_SETUP
-#line 220 "Lexer.flex"
+#line 221 "Lexer.flex"
 STOREAS("Sar")
 	YY_BREAK
 /* Min STOREAS("Min") */
 /* Max STOREAS("Max") */
 case 111:
 YY_RULE_SETUP
-#line 223 "Lexer.flex"
+#line 224 "Lexer.flex"
 STOREAS("Asc")
 	YY_BREAK
 case 112:
 YY_RULE_SETUP
-#line 224 "Lexer.flex"
+#line 225 "Lexer.flex"
 STOREAS("Chr")
 	YY_BREAK
 case 113:
 YY_RULE_SETUP
-#line 225 "Lexer.flex"
+#line 226 "Lexer.flex"
 STOREAS("Len")
 	YY_BREAK
 case 114:
 YY_RULE_SETUP
-#line 226 "Lexer.flex"
+#line 227 "Lexer.flex"
 STOREAS("Varptr")
 	YY_BREAK
 case 115:
 YY_RULE_SETUP
-#line 227 "Lexer.flex"
+#line 228 "Lexer.flex"
 STOREAS("SizeOf")
 	YY_BREAK
 case 116:
 YY_RULE_SETUP
-#line 231 "Lexer.flex"
+#line 232 "Lexer.flex"
 STOREAS("LParen")
 	YY_BREAK
 case 117:
 YY_RULE_SETUP
-#line 232 "Lexer.flex"
+#line 233 "Lexer.flex"
 STOREAS("RParen")
 	YY_BREAK
 case 118:
 YY_RULE_SETUP
-#line 233 "Lexer.flex"
+#line 234 "Lexer.flex"
 STOREAS("LBrace")
 	YY_BREAK
 case 119:
 YY_RULE_SETUP
-#line 234 "Lexer.flex"
+#line 235 "Lexer.flex"
 STOREAS("RBrace")
 	YY_BREAK
 case 120:
 YY_RULE_SETUP
-#line 235 "Lexer.flex"
+#line 236 "Lexer.flex"
 STOREAS("LBracket")
 	YY_BREAK
 case 121:
 YY_RULE_SETUP
-#line 236 "Lexer.flex"
+#line 237 "Lexer.flex"
 STOREAS("RBracket")
 	YY_BREAK
 case 122:
 YY_RULE_SETUP
-#line 237 "Lexer.flex"
+#line 238 "Lexer.flex"
 STOREAS("ByteSigil")
 	YY_BREAK
 case 123:
 YY_RULE_SETUP
-#line 238 "Lexer.flex"
+#line 239 "Lexer.flex"
 STOREAS("IntSigil")
 	YY_BREAK
 case 124:
 YY_RULE_SETUP
-#line 239 "Lexer.flex"
+#line 240 "Lexer.flex"
 STOREAS("FloatSigil")
 	YY_BREAK
 case 125:
 YY_RULE_SETUP
-#line 240 "Lexer.flex"
+#line 241 "Lexer.flex"
 STOREAS("DoubleSigil")
 	YY_BREAK
 case 126:
 YY_RULE_SETUP
-#line 241 "Lexer.flex"
+#line 242 "Lexer.flex"
 STOREAS("StringSigil")
 	YY_BREAK
 case 127:
 YY_RULE_SETUP
-#line 242 "Lexer.flex"
+#line 243 "Lexer.flex"
 STOREAS("Semicolon")
 	YY_BREAK
 case 128:
 YY_RULE_SETUP
-#line 243 "Lexer.flex"
+#line 244 "Lexer.flex"
 STOREAS("Colon")
 	YY_BREAK
 case 129:
 YY_RULE_SETUP
-#line 244 "Lexer.flex"
+#line 245 "Lexer.flex"
 STOREAS("Comma")
 	YY_BREAK
 case 130:
 YY_RULE_SETUP
-#line 245 "Lexer.flex"
+#line 246 "Lexer.flex"
 STOREAS("Dot")
 	YY_BREAK
 case 131:
 YY_RULE_SETUP
-#line 246 "Lexer.flex"
+#line 247 "Lexer.flex"
 STOREAS("DotDot")
 	YY_BREAK
 case 132:
 YY_RULE_SETUP
-#line 247 "Lexer.flex"
+#line 248 "Lexer.flex"
 STOREAS("QuestionMark")
 	YY_BREAK
 case 133:
 YY_RULE_SETUP
-#line 249 "Lexer.flex"
+#line 250 "Lexer.flex"
 STOREAS("BitAnd")
 	YY_BREAK
 case 134:
 YY_RULE_SETUP
-#line 250 "Lexer.flex"
+#line 251 "Lexer.flex"
 STOREAS("BitOr")
 	YY_BREAK
 case 135:
 YY_RULE_SETUP
-#line 251 "Lexer.flex"
+#line 252 "Lexer.flex"
 STOREAS("BitNot")
 	YY_BREAK
 case 136:
 YY_RULE_SETUP
-#line 252 "Lexer.flex"
+#line 253 "Lexer.flex"
 STOREAS("Plus")
 	YY_BREAK
 case 137:
 YY_RULE_SETUP
-#line 253 "Lexer.flex"
+#line 254 "Lexer.flex"
 STOREAS("Minus")
 	YY_BREAK
 case 138:
 YY_RULE_SETUP
-#line 254 "Lexer.flex"
+#line 255 "Lexer.flex"
 STOREAS("Mul")
 	YY_BREAK
 case 139:
 YY_RULE_SETUP
-#line 255 "Lexer.flex"
+#line 256 "Lexer.flex"
 STOREAS("Div")
 	YY_BREAK
 case 140:
 YY_RULE_SETUP
-#line 256 "Lexer.flex"
+#line 257 "Lexer.flex"
 STOREAS("Pow")
 	YY_BREAK
 case 141:
 YY_RULE_SETUP
-#line 257 "Lexer.flex"
+#line 258 "Lexer.flex"
 STOREAS("Neq")
 	YY_BREAK
 case 142:
 YY_RULE_SETUP
-#line 258 "Lexer.flex"
+#line 259 "Lexer.flex"
 STOREAS("Leq")
 	YY_BREAK
 case 143:
 YY_RULE_SETUP
-#line 259 "Lexer.flex"
+#line 260 "Lexer.flex"
 STOREAS("Geq")
 	YY_BREAK
 case 144:
 YY_RULE_SETUP
-#line 260 "Lexer.flex"
+#line 261 "Lexer.flex"
 STOREAS("Lt")
 	YY_BREAK
 case 145:
 YY_RULE_SETUP
-#line 261 "Lexer.flex"
+#line 262 "Lexer.flex"
 STOREAS("Gt")
 	YY_BREAK
 case 146:
 YY_RULE_SETUP
-#line 262 "Lexer.flex"
+#line 263 "Lexer.flex"
 STOREAS("Eq")
 	YY_BREAK
 case 147:
 YY_RULE_SETUP
-#line 263 "Lexer.flex"
+#line 264 "Lexer.flex"
 STOREAS("InfEq")
 	YY_BREAK
 case 148:
 YY_RULE_SETUP
-#line 265 "Lexer.flex"
+#line 266 "Lexer.flex"
 STOREAS("ColonBitAnd")
 	YY_BREAK
 case 149:
 YY_RULE_SETUP
-#line 266 "Lexer.flex"
+#line 267 "Lexer.flex"
 STOREAS("ColonBitOr")
 	YY_BREAK
 case 150:
 YY_RULE_SETUP
-#line 267 "Lexer.flex"
+#line 268 "Lexer.flex"
 STOREAS("ColonBitNot")
 	YY_BREAK
 case 151:
 YY_RULE_SETUP
-#line 268 "Lexer.flex"
+#line 269 "Lexer.flex"
 STOREAS("ColonPlus")
 	YY_BREAK
 case 152:
 YY_RULE_SETUP
-#line 269 "Lexer.flex"
+#line 270 "Lexer.flex"
 STOREAS("ColonMinus")
 	YY_BREAK
 case 153:
 YY_RULE_SETUP
-#line 270 "Lexer.flex"
+#line 271 "Lexer.flex"
 STOREAS("ColonMul")
 	YY_BREAK
 case 154:
 YY_RULE_SETUP
-#line 271 "Lexer.flex"
+#line 272 "Lexer.flex"
 STOREAS("ColonDiv")
 	YY_BREAK
 case 155:
 YY_RULE_SETUP
-#line 272 "Lexer.flex"
+#line 273 "Lexer.flex"
 STOREAS("ColonMod")
 	YY_BREAK
 case 156:
 YY_RULE_SETUP
-#line 273 "Lexer.flex"
+#line 274 "Lexer.flex"
 STOREAS("ColonShl")
 	YY_BREAK
 case 157:
 YY_RULE_SETUP
-#line 274 "Lexer.flex"
+#line 275 "Lexer.flex"
 STOREAS("ColonShr")
 	YY_BREAK
 case 158:
 YY_RULE_SETUP
-#line 275 "Lexer.flex"
+#line 276 "Lexer.flex"
 STOREAS("ColonSar")
 	YY_BREAK
 /* "\\" STOREAS("Lambda") */
 /* "->" STOREAS("RArrow") */
 case 159:
 YY_RULE_SETUP
-#line 282 "Lexer.flex"
+#line 283 "Lexer.flex"
 STOREAS("Whitespace")
 	YY_BREAK
 case 160:
 YY_RULE_SETUP
-#line 283 "Lexer.flex"
+#line 284 "Lexer.flex"
 STOREAS("Linebreak")
 	YY_BREAK
 case 161:
 YY_RULE_SETUP
-#line 287 "Lexer.flex"
+#line 288 "Lexer.flex"
 STOREAS("IntLiteral")
 	YY_BREAK
 case 162:
 YY_RULE_SETUP
-#line 288 "Lexer.flex"
+#line 289 "Lexer.flex"
 STOREAS("HexIntLiteral")
 	YY_BREAK
 case 163:
 YY_RULE_SETUP
-#line 289 "Lexer.flex"
+#line 290 "Lexer.flex"
 STOREAS("BinIntLiteral")
 	YY_BREAK
 case 164:
-#line 291 "Lexer.flex"
+#line 292 "Lexer.flex"
 case 165:
 YY_RULE_SETUP
-#line 291 "Lexer.flex"
+#line 292 "Lexer.flex"
 STOREAS("FloatLiteral")
 	YY_BREAK
 case 166:
 YY_RULE_SETUP
-#line 292 "Lexer.flex"
+#line 293 "Lexer.flex"
 STOREAS("StringLiteral")
 	YY_BREAK
 case 167:
 YY_RULE_SETUP
-#line 294 "Lexer.flex"
+#line 295 "Lexer.flex"
 STOREAS("NativeCode")
 	YY_BREAK
 case 168:
 YY_RULE_SETUP
-#line 296 "Lexer.flex"
+#line 297 "Lexer.flex"
 STOREAS("Comment")
 	YY_BREAK
 case 169:
 YY_RULE_SETUP
-#line 298 "Lexer.flex"
+#line 299 "Lexer.flex"
 BEGIN(REMCOMMENT_FIRST_LINE); STOREAS("Rem")
 	YY_BREAK
 case 170:
 YY_RULE_SETUP
-#line 299 "Lexer.flex"
+#line 300 "Lexer.flex"
 BEGIN(REMCOMMENT);            STOREAS("RemComment")
 	YY_BREAK
 case 171:
 YY_RULE_SETUP
-#line 300 "Lexer.flex"
+#line 301 "Lexer.flex"
 BEGIN(REMCOMMENT);            STOREAS("RemComment")
 	YY_BREAK
 case 172:
 YY_RULE_SETUP
-#line 301 "Lexer.flex"
+#line 302 "Lexer.flex"
 BEGIN(INITIAL);               STOREAS("End Rem")
 	YY_BREAK
 case 173:
 YY_RULE_SETUP
-#line 302 "Lexer.flex"
+#line 303 "Lexer.flex"
 BEGIN(INITIAL);               STOREAS("End Rem")
 	YY_BREAK
 case 174:
 YY_RULE_SETUP
-#line 303 "Lexer.flex"
+#line 304 "Lexer.flex"
 BEGIN(REMCOMMENT);            STOREAS("RemComment")
 	YY_BREAK
 case 175:
 YY_RULE_SETUP
-#line 304 "Lexer.flex"
+#line 305 "Lexer.flex"
 STOREAS("End Rem")
 	YY_BREAK
 case 176:
 YY_RULE_SETUP
-#line 308 "Lexer.flex"
+#line 309 "Lexer.flex"
 STOREAS("Identifier")
 	YY_BREAK
 case 177:
 YY_RULE_SETUP
-#line 312 "Lexer.flex"
+#line 313 "Lexer.flex"
 STOREAS("InvalidCode")
 	YY_BREAK
 case 178:
 YY_RULE_SETUP
-#line 316 "Lexer.flex"
+#line 317 "Lexer.flex"
 ECHO;
 	YY_BREAK
-#line 2117 "Lexer.yy.c"
+#line 2118 "Lexer.yy.c"
 			case YY_STATE_EOF(INITIAL):
 			case YY_STATE_EOF(REMCOMMENT_FIRST_LINE):
 			case YY_STATE_EOF(REMCOMMENT):
@@ -2995,7 +2996,7 @@ int main()
 	return 0;
 	}
 #endif
-#line 316 "Lexer.flex"
+#line 317 "Lexer.flex"
 
 
 

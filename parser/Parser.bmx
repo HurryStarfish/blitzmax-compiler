@@ -278,7 +278,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method TakeToken:TSyntaxToken(kind:TTokenKind)
-		' takes a token of the specified kind, reporting an error if the current token does not match
+		' takes a token of the specified kind, reporting an error and generating a missing token if the current token does not match
 		Local token:TSyntaxToken = TryTakeToken(kind)
 		If token Then
 			Return token
@@ -305,6 +305,102 @@ Type TParser Implements IParser
 			Local token:TSyntaxToken = TryTakeToken(kind)
 			If token Then Return token
 		Next
+	End Method
+	
+	Method SkipAndTakeToken:TSyntaxToken(kinds:TTokenKind[], generatedKindIfMissing:TTokenKind, additionalTerminatorKinds:TTokenKind[])
+		' takes a token of any of the specified kinds, either skipping all tokens before its next occurrence (if it is before any of the surrounding or specified terminator kinds), or generating a missing token and reporting an error
+		Local token:TSyntaxToken = TryTakeToken(kinds)
+		If token Then
+			Return token
+		Else
+			' skip tokens until we either encounter one we want or a terminator
+			' if it was a terminator, discard the skipped tokens and restore the original state
+			terminatorStack.Push additionalTerminatorKinds
+			Local skippedTokens:TSyntaxToken[]
+			Local mustRestoreState:Int = False
+			Local state:SParserState
+			If Not terminatorStack.Contains(currentToken.Kind()) Then
+				state = SaveState()
+				Repeat
+					skippedTokens :+ [TakeToken()]
+					If terminatorStack.Contains(currentToken.Kind()) Then
+						mustRestoreState = True
+						Exit
+					Else
+						token = TryTakeToken(kinds)
+						If token Then Exit
+					End If
+				Forever
+			End If
+			terminatorStack.Pop
+			If mustRestoreState Then RestoreState state
+			
+			If token And skippedTokens Then
+				' TODO: introduce a separate kind of trivia for skipped tokens instead of flattening them like this
+				Local leadingTrivia:TLexerToken[]
+				For Local st:TSyntaxToken = EachIn skippedTokens
+					ReportError "Unexpected " + st.lexerToken.value
+					leadingTrivia :+ st.leadingTrivia + [st.lexerToken] + st.trailingTrivia
+				Next
+				leadingTrivia :+ token.leadingTrivia
+				token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+			Else If Not token Then
+				token = GenerateMissingToken(generatedKindIfMissing)
+				Local expectedKindsStr:String
+				For Local k:Int = 0 Until kinds.length
+					If k = 0 Then
+						expectedKindsStr :+ kinds[k].ToCode()
+					Else If k = kinds.length - 1 Then
+						expectedKindsStr :+ " or " + kinds[k].ToCode()
+					Else
+						expectedKindsStr :+ ", " + kinds[k].ToCode()
+					End If
+				Next
+				ReportError "Expected " + expectedKindsStr
+			End If
+			Return token
+		End If
+	End Method
+	
+	Method SkipAndTakeToken:TSyntaxToken(kind:TTokenKind, additionalTerminatorKinds:TTokenKind[])
+		' takes a token of the specified kind, either skipping all tokens before its next occurrence (if it is before any of the surrounding or specified terminator kinds), or generating a missing token and reporting an error
+		Local token:TSyntaxToken = TryTakeToken(kind)
+		
+		If Not token Then
+			terminatorStack.Push additionalTerminatorKinds
+			Local skippedTokens:TSyntaxToken[]
+			Local mustRestoreState:Int = False
+			Local state:SParserState
+			If Not terminatorStack.Contains(currentToken.Kind()) Then
+				state = SaveState()
+				Repeat
+					skippedTokens :+ [TakeToken()]
+					If currentToken.Kind() = kind Then
+						Exit
+					Else If terminatorStack.Contains(currentToken.Kind()) Then
+						mustRestoreState = True
+						Exit
+					End If
+				Forever
+			End If
+			terminatorStack.Pop
+			If mustRestoreState Then RestoreState state
+			
+			If token And skippedTokens Then
+				' TODO: introduce a separate kind of trivia for skipped tokens instead of flattening them like this
+				Local leadingTrivia:TLexerToken[]
+				For Local st:TSyntaxToken = EachIn skippedTokens
+					ReportError "Unexpected " + st.lexerToken.value
+					leadingTrivia :+ st.leadingTrivia + [st.lexerToken] + st.trailingTrivia
+				Next
+				leadingTrivia :+ token.leadingTrivia
+				token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+			Else If Not token Then
+				token = TakeToken(kind)
+			End If
+		End If
+		
+		Return token
 	End Method
 	
 	Method GenerateMissingToken:TSyntaxToken(kind:TTokenKind)
@@ -482,7 +578,7 @@ Type TParser Implements IParser
 				If terminatorStack.Contains(currentToken.Kind()) Then
 					Exit
 				Else
-					ReportError "Unexpected token " + currentToken.lexerToken.value
+					ReportError "Unexpected " + currentToken.lexerToken.value
 					skippedTokens :+ [currentToken]
 					AdvanceToNextSyntaxToken
 				End If
@@ -1222,8 +1318,9 @@ Type TParser Implements IParser
 				counter = New TForCounterExpressionSyntax(GenerateMissingExpression())
 			End If
 		End If
-		
-		Local eq:TSyntaxToken = TakeToken(TTokenKind.Eq)
+		'
+		'TODO: add expectedTerminators parameter To ParseExpression?
+		Local eq:TSyntaxToken = SkipAndTakeToken(TTokenKind.Eq, [TTokenKind.Semicolon, TTokenKind.Linebreak])
 		
 		Local valueSequence:TForValueSequenceSyntax
 		If currentToken.Kind() = TTokenKind.EachIn_ Then
@@ -1236,6 +1333,12 @@ Type TParser Implements IParser
 			valueSequence = New TForEachInValueSequenceSyntax(eachInKeyword, iterableExpression)
 		Else
 			Local expressionAfterEq:IExpressionSyntax = ParseExpression()
+			'Local skippedTokens:TSyntaxToken[]
+			'While Not expressionAfterEq And Not terminatorStack.Contains(currentToken.Kind())
+			'	skippedTokens :+ [TakeToken()]
+			'	ReportError "skipped: " + skippedTokens[skippedTokens.length - 1].lexerToken.value
+			'	expressionAfterEq = ParseExpression()
+			'Wend
 			If expressionAfterEq Then
 				Local startExpression:IExpressionSyntax = expressionAfterEq
 				If Not startExpression Then
@@ -1551,10 +1654,35 @@ Type TParser Implements IParser
 	
 	Method ParseExpression:IExpressionSyntax()
 		Return ParseRangeCompatibleExpression()
-		' the more specialized Parse*Expression methods that return a IExpressionSyntax may return
-		' any type of expression with higher precedence
-		' for example, ParseSumExpression may return a TProductExpression if no sum operator is present
 	End Method
+	
+	Rem
+	Method SkipAndParseExpression:IExpressionSyntax(expectedTerminatorKinds:TTokenKind[])
+		Local expression:IExpressionSyntax = ParseExpression()
+		If Not expression Then
+			Local state:SParserState = SaveState()
+			Local skippedTokens:TSyntaxToken[]
+			While Not expression And Not terminatorStack.Contains(currentToken.Kind())
+				skippedTokens :+ [TakeToken()]
+				expression = ParseExpression()
+			Wend
+			If expression Then
+				If skippedTokens Then
+					For Local st:TSyntaxToken = EachIn skippedTokens
+						ReportError "Unexpected " + st.lexerToken.value
+						leadingTrivia :+ st.leadingTrivia + [st.lexerToken] + st.trailingTrivia
+					Next
+					leadingTrivia :+ token.leadingTrivia
+					TODO: ' how to attach skipped trivia to the first token of the expression?
+					'token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+				End If
+			Else
+				RestoreState state
+			End If
+		End If
+		Return expression
+	End Method
+	End Rem
 	
 	Method ParseRangeCompatibleExpression:IRangeCompatibleExpressionSyntax()
 		' TODO: even if it means breaking backwards compatibility, this should probably have higher

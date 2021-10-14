@@ -76,13 +76,14 @@ void resetFilePosition(FilePosition* pos) {
 	free(filePath);                             \
 	return 0;                                   \
 }
+
+#define NEWLINE_CHARS \r\n
 %}
 
 /* exclusive start conditions */
 %x REMCOMMENT_FIRST_LINE REMCOMMENT
 
-NEWLINE \n|\r\n|\r
-NEWLINE_CHARS \r\n
+NEWLINE \r\n|\r|\n
 /* TLexerToken.CodeRange must be kept in sync with the token kinds newlines are used in */
 
 %%
@@ -281,7 +282,7 @@ SizeOf STOREAS("SizeOf")
 
 
 [ \t]*    STOREAS("Whitespace")
-{NEWLINE}   STOREAS("Linebreak")
+{NEWLINE} STOREAS("Linebreak")
 
 
 
@@ -290,19 +291,19 @@ SizeOf STOREAS("SizeOf")
 \%[0-1]+                        STOREAS("BinIntLiteral")
 [0-9]*\.[0-9]+([eE]-?[0-9]+)?   |
 [0-9]+[eE]-?[0-9]+              STOREAS("FloatLiteral")
-\"[^\"{NEWLINE_CHARS}]*\"       STOREAS("StringLiteral")
+\"([^\r\n]{-}[\"])*\"           STOREAS("StringLiteral")
 
-'!.*                            STOREAS("NativeCode")
+'![^\r\n]*                      STOREAS("NativeCode")
 
-'.*                             STOREAS("Comment")
+'[^\r\n]*                       STOREAS("Comment")
 
-Rem                                                         BEGIN(REMCOMMENT_FIRST_LINE); STOREAS("Rem")
-<REMCOMMENT_FIRST_LINE>.*{NEWLINE}                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
-<REMCOMMENT>[ \t]*                                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
-<REMCOMMENT>[ \t]*End[ \t]?Rem/{NEWLINE}                    BEGIN(INITIAL);               STOREAS("End Rem")
-<REMCOMMENT>[ \t]*End[ \t]?Rem/([^a-zA-Z0-9_\n].*{NEWLINE}) BEGIN(INITIAL);               STOREAS("End Rem")
-<REMCOMMENT>.*{NEWLINE}                                     BEGIN(REMCOMMENT);            STOREAS("RemComment")
-End[ \t]?Rem                    STOREAS("End Rem")
+Rem                                                                         BEGIN(REMCOMMENT_FIRST_LINE); STOREAS("Rem")
+<REMCOMMENT_FIRST_LINE>[^\r\n]*{NEWLINE}                                    BEGIN(REMCOMMENT);            STOREAS("RemComment")
+<REMCOMMENT>[ \t]*                                                          BEGIN(REMCOMMENT);            STOREAS("RemComment")
+<REMCOMMENT>[ \t]*End[ \t]?Rem/{NEWLINE}                                    BEGIN(INITIAL);               STOREAS("End Rem")
+<REMCOMMENT>[ \t]*End[ \t]?Rem/(([^\r\n]{-}[a-zA-Z0-9_])[^\r\n]*{NEWLINE})  BEGIN(INITIAL);               STOREAS("End Rem")
+<REMCOMMENT>[^\r\n]*{NEWLINE}                                               BEGIN(REMCOMMENT);            STOREAS("RemComment")
+End[ \t]?Rem                                                                                              STOREAS("End Rem")
 
 
 

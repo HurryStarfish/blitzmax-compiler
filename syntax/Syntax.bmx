@@ -21,6 +21,7 @@ Type TSyntax Implements ISyntax Abstract
 			If children.length = 1 Then
 				Return children[0].CodeRange()
 			Else
+				' return combined range of children
 				Local firstValidChildRange:SCodeRange
 				Local lastValidChildRange:SCodeRange
 				Local c:Int

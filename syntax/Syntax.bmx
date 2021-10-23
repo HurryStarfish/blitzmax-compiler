@@ -1936,18 +1936,20 @@ End Type
 
 
 
-' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Types ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
 Type TTypeSyntax Extends TSyntax Final
 	Field ReadOnly colon:TSyntaxToken {nullable minor}
 	Field ReadOnly base:TTypeBaseSyntax {nullable} ' should only be null in the case of a void-returning callable type
+	Field ReadOnly marshallingModifier:TTypeMarshallingModifierSyntax {nullable}
 	Field ReadOnly suffixes:TTypeSuffixSyntax[]
 	
-	Method New(colon:TSyntaxToken, base:TTypeBaseSyntax, suffixes:TTypeSuffixSyntax[])
+	Method New(colon:TSyntaxToken, base:TTypeBaseSyntax, marshallingModifier:TTypeMarshallingModifierSyntax, suffixes:TTypeSuffixSyntax[])
 		Self.colon = colon
 		Self.base = base
+		Self.marshallingModifier = marshallingModifier
 		Self.suffixes = suffixes
 		Verify Self
 	End Method
@@ -1956,6 +1958,7 @@ Type TTypeSyntax Extends TSyntax Final
 		Return ChildrenToArray( ..
 			colon, ..
 			base, ..
+			marshallingModifier, ..
 			suffixes ..
 		)
 	End Method
@@ -2013,6 +2016,45 @@ Type TQualifiedNameTypeBaseSyntax Extends TTypeBaseSyntax Final
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			name ..
+		)
+	End Method
+End Type
+
+
+
+Type TTypeMarshallingModifierSyntax Extends TSyntax Abstract
+End Type
+
+
+
+Type TCStringTypeMarshallingModifierSyntax Extends TTypeMarshallingModifierSyntax Final
+	Field ReadOnly keyword:TContextualKeywordSyntax {minor}
+	
+	Method New(keyword:TContextualKeywordSyntax)
+		Self.keyword = keyword
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword ..
+		)
+	End Method
+End Type
+
+
+
+Type TWStringTypeMarshallingModifierSyntax Extends TTypeMarshallingModifierSyntax Final
+	Field ReadOnly keyword:TContextualKeywordSyntax {minor}
+	
+	Method New(keyword:TContextualKeywordSyntax)
+		Self.keyword = keyword
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword ..
 		)
 	End Method
 End Type
@@ -2101,6 +2143,10 @@ Type TCallableTypeSuffixSyntax Extends TTypeSuffixSyntax Final
 		)
 	End Method
 End Type
+
+
+
+' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
@@ -2470,7 +2516,7 @@ End Type
 
 Type TContextualKeywordSyntax Extends TSyntax Final
 	Field ReadOnly canonicalValue:String
-	Field ReadOnly identifier:TSyntaxToken
+	Field ReadOnly identifier:TSyntaxToken {minor}
 		
 	Method New(canonicalValue:String, identifier:TSyntaxToken)
 		Self.canonicalValue = canonicalValue

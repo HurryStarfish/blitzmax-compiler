@@ -40,9 +40,11 @@ Enum ETypeParseMode
 	Committal
 	Noncommittal
 	' committal parsing means locking into success after having successfully parsed the first token
-	' and is to be used in contexts where it is certain that a type is expected (even if optional);
-	' noncommittal parsing means using backtracking to fail late if no valid type can be parsed
-	' and is to be used in contexts where it is uncertain whether to expect a type or something else
+	' and is to be used in contexts where a (possibly optional) type is expected and the first token
+	' is sufficient to determine whether that type is present;
+	' noncommittal parsing means using backtracking to fail late if no complete type can be parsed
+	' and is to be used in contexts where either a type or some other syntax is expected and the first
+	' token is unsufficient to distinguish between them
 End Enum
 
 Enum EColonTypeMode
@@ -430,7 +432,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method GenerateMissingType:TTypeSyntax()
-		Return New TTypeSyntax(Null, New TQualifiedNameTypeBaseSyntax(GenerateMissingQualifiedName()), [])
+		Return New TTypeSyntax(Null, New TQualifiedNameTypeBaseSyntax(GenerateMissingQualifiedName()), Null, [])
 	End Method
 	
 	Method ReportError(error:String)
@@ -976,10 +978,10 @@ Type TParser Implements IParser
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+			type_ = New TTypeSyntax(Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
 		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = New TTypeSyntax(type_.colon, type_.base, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
 		Local modifiers:TCallableModifierSyntax[]
@@ -2140,7 +2142,7 @@ Type TParser Implements IParser
 		Return ParseExpression()
 	End Method
 	
-	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Types ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
 	Method ParseType:TTypeSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' backtracks
 		' TODO: improve code, hard to understand
@@ -2179,6 +2181,11 @@ Type TParser Implements IParser
 			End If
 		End If
 		
+		Local marshallingModifier:TTypeMarshallingModifierSyntax
+		If TSigilTypeBaseSyntax(base) And TSigilTypeBaseSyntax(base).sigil.Kind() = TTokenKind.StringSigil Then
+			marshallingModifier = ParseTypeMarshallingModifier()
+		End If
+		
 		Local suffixes:TTypeSuffixSyntax[]
 		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
 		Repeat
@@ -2206,7 +2213,7 @@ Type TParser Implements IParser
 			End If
 		Forever
 		
-		Return New TTypeSyntax(colon, base, suffixes)
+		Return New TTypeSyntax(colon, base, marshallingModifier, suffixes)
 	End Method
 	
 	Method ParseSuperType:TTypeSyntax()
@@ -2287,6 +2294,25 @@ Type TParser Implements IParser
 		Return New TQualifiedNameTypeBaseSyntax(name)
 	End Method
 	
+	Method ParseTypeMarshallingModifier:TTypeMarshallingModifierSyntax()
+		Local modifier:TTypeMarshallingModifierSyntax
+		modifier = ParseCStringTypeMarshallingModifier(); If modifier Then Return modifier
+		modifier = ParseWStringTypeMarshallingModifier(); If modifier Then Return modifier
+		Return Null
+	End Method
+	
+	Method ParseCStringTypeMarshallingModifier:TCStringTypeMarshallingModifierSyntax()
+		Local keyword:TContextualKeywordSyntax = ParseContextualKeyword("z")
+		If keyword Then Return New TCStringTypeMarshallingModifierSyntax(keyword)
+		Return Null
+	End Method
+	
+	Method ParseWStringTypeMarshallingModifier:TWStringTypeMarshallingModifierSyntax()
+		Local keyword:TContextualKeywordSyntax = ParseContextualKeyword("w")
+		If keyword Then Return New TWStringTypeMarshallingModifierSyntax(keyword)
+		Return Null
+	End Method
+	
 	Method ParseTypeSuffix:TTypeSuffixSyntax(callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption)		
 		Local typeSuffix:TTypeSuffixSyntax
 		If callableTypeOption = ECallableTypeOption.Allow Then
@@ -2341,6 +2367,8 @@ Type TParser Implements IParser
 		
 		Return New TCallableTypeSuffixSyntax(lparen, parameterDeclaration, rparen)
 	End Method
+	
+	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
 	Method ParseVariableDeclaratorList:TVariableDeclaratorListSyntax(initializersOption:EInitializersOption) ' always succeeds
 		Local elements:TVariableDeclaratorListElementSyntax[]

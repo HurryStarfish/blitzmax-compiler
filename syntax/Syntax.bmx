@@ -254,11 +254,11 @@ End Interface
 
 Type TExternBlockSyntax Extends TSyntax Implements ICodeBlockElementSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
-	Field ReadOnly callingConvention:TStringLiteralExpressionSyntax {nullable}
+	Field ReadOnly callingConvention:TSyntaxToken {nullable}
 	Field ReadOnly elements:IExternBlockElementSyntax[]
 	Field ReadOnly terminatorKeyword:TSyntaxToken {minor}
 	
-	Method New(initiatorKeyword:TSyntaxToken, callingConvention:TStringLiteralExpressionSyntax, declarations:IExternBlockElementSyntax[], terminatorKeyword:TSyntaxToken)
+	Method New(initiatorKeyword:TSyntaxToken, callingConvention:TSyntaxToken, elements:IExternBlockElementSyntax[], terminatorKeyword:TSyntaxToken)
 		Self.initiatorKeyword = initiatorKeyword
 		Self.callingConvention = callingConvention
 		Self.elements = elements
@@ -299,6 +299,30 @@ End Type
 
 
 Type TExternFunctionDeclarationSyntax Extends TExternDeclarationSyntax Final
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly name:TCallableDeclarationNameSyntax
+	Field ReadOnly type_:TTypeSyntax
+	Field ReadOnly externSignatureAssignment:TExternSignatureAssignmentSyntax
+	Field ReadOnly metaData:TMetaDataSyntax {nullable}
+	
+	Method New(initiatorKeyword:TSyntaxToken, name:TCallableDeclarationNameSyntax, type_:TTypeSyntax, externSignatureAssignment:TExternSignatureAssignmentSyntax, metaData:TMetaDataSyntax)
+		Self.initiatorKeyword = initiatorKeyword
+		Self.name = name
+		Self.type_ = type_
+		Self.externSignatureAssignment = externSignatureAssignment
+		Self.metaData = metaData
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			initiatorKeyword, ..
+			name, ..
+			type_, ..
+			externSignatureAssignment, ..
+			metaData ..
+		)
+	End Method
 End Type
 
 
@@ -2547,6 +2571,26 @@ Type TAssignmentSyntax Extends TSyntax Final
 		Return ChildrenToArray( ..
 			op, ..
 			expression ..
+		)
+	End Method
+End Type
+
+
+
+Type TExternSignatureAssignmentSyntax Extends TSyntax Final
+	Field ReadOnly op:TOperatorSyntax {minor}
+	Field ReadOnly externSignature:TSyntaxToken
+	
+	Method New(op:TOperatorSyntax, externSignature:TSyntaxToken)
+		Self.op = op
+		Self.externSignature = externSignature
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			op, ..
+			externSignature ..
 		)
 	End Method
 End Type

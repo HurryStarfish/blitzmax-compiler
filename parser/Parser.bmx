@@ -699,13 +699,14 @@ Type TParser Implements IParser
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Extern_)
 		If Not initiatorKeyword Then Return Null
 		
-		Local callingConvention:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
+		Local callingConvention:TSyntaxToken = TryTakeToken(TTokenKind.StringLiteral)
 		
 		Local elements:IExternBlockElementSyntax[]
 		Repeat
 			elements :+ ParseStatementSeparators()
 			Local element:IExternBlockElementSyntax = ParseExternBlockElement()
 			If Not element Then Exit
+			elements :+ [element]
 			' TODO: skip tokens until it is possible to parse an element or End Extern - or possibly the terminator token of a surrounding block?
 		Forever
 		
@@ -715,9 +716,9 @@ Type TParser Implements IParser
 	
 	Method ParseExternBlockElement:IExternBlockElementSyntax()
 		Local externBlockElement:IExternBlockElementSyntax
-		externBlockElement = ParseExternTypeDeclaration();     If externBlockElement Then Return externBlockElement
+		'externBlockElement = ParseExternTypeDeclaration();     If externBlockElement Then Return externBlockElement
 		externBlockElement = ParseExternFunctionDeclaration(); If externBlockElement Then Return externBlockElement
-		externBlockElement = ParseExternVariableDeclaration(); If externBlockElement Then Return externBlockElement
+		'externBlockElement = ParseExternVariableDeclaration(); If externBlockElement Then Return externBlockElement
 		Return Null
 	End Method
 	
@@ -1014,7 +1015,42 @@ Type TParser Implements IParser
 	End Method
 	
 	Method ParseExternFunctionDeclaration:TExternFunctionDeclarationSyntax()
-		Throw "TODO"
+		Local kind:ECallableKind
+		Local declarationTokenKind:TTokenKind
+		Select currentToken.Kind()
+			Case TTokenKind.Function_ kind = ECallableKind.Function_; declarationTokenKind = TTokenKind.Function_
+			Default Return Null
+		End Select
+		
+		Local initiatorKeyword:TSyntaxToken = TakeToken(declarationTokenKind)
+		
+		Local name:TCallableDeclarationNameSyntax
+		Local identifierName:TNameSyntax = ParseName()
+		If identifierName Then
+			name = New TCallableDeclarationNameSyntax(identifierName)
+		Else
+			ReportError "Expected " + initiatorKeyword.lexerToken.value.ToLower() + " name"
+			name = New TCallableDeclarationNameSyntax(GenerateMissingName())
+		End If
+		
+		' TODO type params
+		
+		Local type_:TTypeSyntax = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
+		' generate a void-return-no-parameters type if no type can be parsed;
+		' just append an empty parameter list if a type was parsed but it isn't a callable type
+		If Not type_ Then
+			ReportError "Expected callable type"
+			type_ = New TTypeSyntax(Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
+			ReportError "Expected callable type"
+			type_ = New TTypeSyntax(type_.colon, type_.base, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+		End If
+		
+		Local externSignatureAssignment:TExternSignatureAssignmentSyntax = ParseExternSignatureAssignment()
+		
+		Local metaData:TMetaDataSyntax = ParseMetaData()
+		
+		Return New TExternFunctionDeclarationSyntax(initiatorKeyword, name, type_, externSignatureAssignment, metaData)
 	End Method
 	
 	Method ParseVariableDeclaration:TVariableDeclarationSyntax(acceptedDeclarationKeywords:TTokenKind[], multipleDeclaratorsOption:EMultipleDeclaratorsOption, initializersOption:EInitializersOption)
@@ -2597,6 +2633,15 @@ Type TParser Implements IParser
 		End If
 		
 		Return New TAssignmentSyntax(op, expression)
+	End Method
+	
+	Method ParseExternSignatureAssignment:TExternSignatureAssignmentSyntax()
+		Local op:TOperatorSyntax = ParseOperator([TTokenKind.Eq])
+		If Not op Then Return Null
+		
+		Local externSignature:TSyntaxToken = TakeToken(TTokenKind.StringLiteral)
+		
+		Return New TExternSignatureAssignmentSyntax(op, externSignature)
 	End Method
 	
 	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolons or non-escaped line break)

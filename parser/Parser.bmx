@@ -1541,7 +1541,7 @@ Type TParser Implements IParser
 			expression = GenerateMissingExpression()
 		End If
 		
-		Return New TThrowStatementSyntax(expression)
+		Return New TThrowStatementSyntax(keyword, expression)
 	End Method
 	
 	Method ParseAssertStatement:TAssertStatementSyntax()

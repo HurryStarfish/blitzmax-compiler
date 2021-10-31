@@ -1191,15 +1191,18 @@ End Type
 
 
 Type TThrowStatementSyntax Extends TSyntax Implements IStatementSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly expression:IExpressionSyntax
 	
-	Method New(expression:IExpressionSyntax)
+	Method New(keyword:TSyntaxToken, expression:IExpressionSyntax)
+		Self.keyword = keyword
 		Self.expression = expression
 		Verify Self
 	End Method
 	
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
+			keyword, ..
 			expression ..
 		)
 	End Method

@@ -1270,6 +1270,26 @@ End Type
 
 
 
+Type TReleaseStatementSyntax Extends TSyntax Implements IStatementSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
+	Field ReadOnly handleExpression:IExpressionSyntax
+	
+	Method New(keyword:TSyntaxToken, handleExpression:IExpressionSyntax)
+		Self.keyword = keyword
+		Self.handleExpression = handleExpression
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword, ..
+			handleExpression ..
+		)
+	End Method
+End Type
+
+
+
 Type TAssignmentStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly target:IExpressionSyntax ' TODO: constrain to lvalue?
 	Field ReadOnly assignment:TAssignmentSyntax

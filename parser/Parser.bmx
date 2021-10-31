@@ -1229,6 +1229,8 @@ Type TParser Implements IParser
 		statement = ParseReadDataStatement();        If statement Then Return statement
 		statement = ParseRestoreDataStatement();     If statement Then Return statement
 		
+		statement = ParseReleaseStatement();         If statement Then Return statement
+		
 		Return Null
 	End Method
 	
@@ -1602,6 +1604,19 @@ Type TParser Implements IParser
 		If Not keyword Then Return Null
 		
 		Throw "TODO" ' TODO
+	End Method
+	
+	Method ParseReleaseStatement:TReleaseStatementSyntax()
+		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Release_)
+		If Not keyword Then Return Null
+		
+		Local handleExpression:IExpressionSyntax = ParseExpression()
+		If Not handleExpression Then
+			ReportError "Expected expression"
+			handleExpression = GenerateMissingExpression()
+		End If
+		
+		Return New TReleaseStatementSyntax(keyword, handleExpression)
 	End Method
 	
 	Method ParseExpressionBasedStatement:IStatementSyntax()

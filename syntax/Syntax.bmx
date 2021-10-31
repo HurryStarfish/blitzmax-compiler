@@ -1270,6 +1270,66 @@ End Type
 
 
 
+Type TDefDataStatementSyntax Extends TSyntax Implements IStatementSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
+	Field ReadOnly expressionList:TExpressionListSyntax
+	
+	Method New(keyword:TSyntaxToken, expressionList:TExpressionListSyntax)
+		Self.keyword = keyword
+		Self.expressionList = expressionList
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword, ..
+			expressionList ..
+		)
+	End Method
+End Type
+
+
+
+Type TReadDataStatementSyntax Extends TSyntax Implements IStatementSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
+	Field ReadOnly expressionList:TExpressionListSyntax
+	
+	Method New(keyword:TSyntaxToken, expressionList:TExpressionListSyntax)
+		Self.keyword = keyword
+		Self.expressionList = expressionList
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword, ..
+			expressionList ..
+		)
+	End Method
+End Type
+
+
+
+Type TRestoreDataStatementSyntax Extends TSyntax Implements IStatementSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
+	Field ReadOnly labelName:TNameSyntax
+	
+	Method New(keyword:TSyntaxToken, labelName:TNameSyntax)
+		Self.keyword = keyword
+		Self.labelName = labelName
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword, ..
+			labelName ..
+		)
+	End Method
+End Type
+
+
+
 Type TReleaseStatementSyntax Extends TSyntax Implements IStatementSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
 	Field ReadOnly handleExpression:IExpressionSyntax

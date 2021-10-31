@@ -1585,25 +1585,35 @@ Type TParser Implements IParser
 		Return New TNativeCodeStatementSyntax(token)
 	End Method
 	
-	Method ParseDefDataStatement:IStatementSyntax()
+	Method ParseDefDataStatement:TDefDataStatementSyntax()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.DefData_)
 		If Not keyword Then Return Null
 		
-		Throw "TODO" ' TODO
+		Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+		
+		Return New TDefDataStatementSyntax(keyword, expressionList)
 	End Method
 	
-	Method ParseReadDataStatement:IStatementSyntax()
+	Method ParseReadDataStatement:TReadDataStatementSyntax()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.ReadData_)
 		If Not keyword Then Return Null
 		
-		Throw "TODO" ' TODO
+		Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+		
+		Return New TReadDataStatementSyntax(keyword, expressionList)
 	End Method
 	
-	Method ParseRestoreDataStatement:IStatementSyntax()
+	Method ParseRestoreDataStatement:TRestoreDataStatementSyntax()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.RestoreData_)
 		If Not keyword Then Return Null
+				
+		Local labelName:TNameSyntax = ParseName()
+		If Not labelName Then
+			ReportError "Expected label name"
+			labelName = GenerateMissingName()
+		End If
 		
-		Throw "TODO" ' TODO
+		Return New TRestoreDataStatementSyntax(keyword, labelName)
 	End Method
 	
 	Method ParseReleaseStatement:TReleaseStatementSyntax()

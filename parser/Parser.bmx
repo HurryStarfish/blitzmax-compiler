@@ -44,7 +44,7 @@ Enum ETypeParseMode
 	' is sufficient to determine whether that type is present;
 	' noncommittal parsing means using backtracking to fail late if no complete type can be parsed
 	' and is to be used in contexts where either a type or some other syntax is expected and the first
-	' token is unsufficient to distinguish between them
+	' token is insufficient to distinguish between them
 End Enum
 
 Enum EColonTypeMode
@@ -2250,7 +2250,6 @@ Type TParser Implements IParser
 		Local suffixes:TTypeSuffixSyntax[]
 		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
 		Repeat
-			' TODO: handle marshalled types like $z and $w
 			Local stateBeforeSuffix:SParserState
 			If typeParseMode = ETypeParseMode.Noncommittal Then stateBeforeSuffix = SaveState()
 			Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)

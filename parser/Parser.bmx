@@ -424,7 +424,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method GenerateMissingQualifiedName:TQualifiedNameSyntax()
-		New TQualifiedNameSyntax([New TQualifiedNamePartSyntax(Null, GenerateMissingIdentifier())])
+		Return New TQualifiedNameSyntax([New TQualifiedNamePartSyntax(Null, GenerateMissingIdentifier())])
 	End Method
 	
 	Method GenerateMissingExpression:TNameExpressionSyntax() ' TODO: TErrorExpression?

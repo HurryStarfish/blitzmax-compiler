@@ -147,6 +147,8 @@ Type TParser Implements IParser
 	Field currentToken:TSyntaxToken
 		
 	Private
+	Global StatementSeparatorTokenKinds:TTokenKind[] = [TTokenKind.Linebreak, TTokenKind.Semicolon]
+	
 	Field nextLexerToken:TLexerToken
 	Field nextLeadingTrivia:TLexerToken[]
 	
@@ -310,6 +312,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method SkipAndTakeToken:TSyntaxToken(kinds:TTokenKind[], generatedKindIfMissing:TTokenKind, additionalTerminatorKinds:TTokenKind[])
+		' TODO: limit lookahead
 		' takes a token of any of the specified kinds, either skipping all tokens before its next occurrence (if it is before any of the surrounding or specified terminator kinds), or generating a missing token and reporting an error
 		Local token:TSyntaxToken = TryTakeToken(kinds)
 		If token Then
@@ -365,6 +368,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method SkipAndTakeToken:TSyntaxToken(kind:TTokenKind, additionalTerminatorKinds:TTokenKind[])
+		Throw "TODO: sometimes drops tokens; fix" ' e.g. when skipping to the ">" in "a<b & c>(d)"
 		' takes a token of the specified kind, either skipping all tokens before its next occurrence (if it is before any of the surrounding or specified terminator kinds), or generating a missing token and reporting an error
 		Local token:TSyntaxToken = TryTakeToken(kind)
 		
@@ -382,7 +386,14 @@ Type TParser Implements IParser
 					Else If terminatorStack.Contains(currentToken.Kind()) Then
 						mustRestoreState = True
 						Exit
+					Else If skippedTokens.length > 30 Then
+						mustRestoreState = True
+						Exit
 					End If
+					' TODO: use additional terminators; in expression contexts this can be any token
+					'       kinda that can not appear in any expression (keywords for declarations,
+					'       statements, ...), in other contexts it should not include any token
+					'       kinds that could appear in the current construct
 				Forever
 			End If
 			terminatorStack.Pop
@@ -840,7 +851,7 @@ Type TParser Implements IParser
 		'Local kind:ETypeKind = ETypeKind.Enum_
 		Local declarationTokenKind:TTokenKind = TTokenKind.Enum_
 		Local terminatorTokenKind:TTokenKind = TTokenKind.EndEnum_
-				
+		
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(declarationTokenKind)
 		If Not initiatorKeyword Then Return Null
 		
@@ -1380,7 +1391,7 @@ Type TParser Implements IParser
 		End If
 		'
 		'TODO: add expectedTerminators parameter To ParseExpression?
-		Local eq:TSyntaxToken = SkipAndTakeToken(TTokenKind.Eq, [TTokenKind.Semicolon, TTokenKind.Linebreak])
+		Local eq:TSyntaxToken = SkipAndTakeToken(TTokenKind.Eq, StatementSeparatorTokenKinds)
 		
 		Local valueSequence:TForValueSequenceSyntax
 		If currentToken.Kind() = TTokenKind.EachIn_ Then
@@ -1626,7 +1637,7 @@ Type TParser Implements IParser
 	Method ParseRestoreDataStatement:TRestoreDataStatementSyntax()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.RestoreData_)
 		If Not keyword Then Return Null
-				
+		
 		Local labelName:TNameSyntax = ParseName()
 		If Not labelName Then
 			ReportError "Expected label name"
@@ -1689,17 +1700,16 @@ Type TParser Implements IParser
 		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression(True)
 		If Not expression Then Return Null
 		
-		If Not IsValidType(expression) Then
+		If Not IsValidExpressionType(expression) Then
 			RestoreState state
 			Return Null
 		End If
-		Function IsValidType:Int(expression:IExpressionSyntax)
-			'If TTypeBindingExpressionSyntax(expression) Then Return True
+		Function IsValidExpressionType:Int(expression:IExpressionSyntax)
 			If TMemberAccessExpressionSyntax(expression) Then Return True
 			If TIndexExpressionSyntax(expression) Then Return True
 			If TTypeApplicationExpressionSyntax(expression) Then Return True
 			'If TTypeAssertionExpressionSyntax(expression) Then Return Return IsValidType(TTypeAssertionExpressionSyntax(expression).expression)
-			If TParenExpressionSyntax(expression) Then Return IsValidType(TParenExpressionSyntax(expression).expression)
+			If TParenExpressionSyntax(expression) Then Return IsValidExpressionType(TParenExpressionSyntax(expression).expression)
 			If TNameExpressionSyntax(expression) Then Return True
 			Return False
 		End Function
@@ -1716,14 +1726,14 @@ Type TParser Implements IParser
 		If Not expression Then Return Null
 		Assert Not (TMemberAccessExpressionSyntax(expression) Or TIndexExpressionSyntax(expression) Or TTypeApplicationExpressionSyntax(expression)) Else "ParseExpressionStatement parsed an expression type that should have been parsed by ParseParenlessCallStatement" '  Or TTypeAssertionExpressionSyntax
 		
-		If Not IsValidType(expression) Then
+		If Not IsValidExpressionType(expression) Then
 			RestoreState state
 			Return Null
 		End If
-		Function IsValidType:Int(expression:IExpressionSyntax)
+		Function IsValidExpressionType:Int(expression:IExpressionSyntax)
 			If TCallExpressionSyntax(expression) Then Return True
 			If TNewExpressionSyntax(expression) Then Return True
-			If TParenExpressionSyntax(expression) Then Return IsValidType(TParenExpressionSyntax(expression).expression)
+			If TParenExpressionSyntax(expression) Then Return IsValidExpressionType(TParenExpressionSyntax(expression).expression)
 			Return False
 		End Function
 		
@@ -1771,21 +1781,21 @@ Type TParser Implements IParser
 		'       and logical operators should probably not be supported by structs in general
 		'       (assuming they cannot be overloaded someday), so the chances of breaking any
 		'       code with that change would be pretty low
-				
+		
 		' the range operator is unique in that its operands are optional
 		Local lhs:IRangeCompatibleExpressionSyntax
 		If currentToken.Kind() <> TTokenKind.DotDot Then
 			lhs = ParseOrCompatibleExpression()
 			If Not lhs Then Return Null
 		End If
-		' lhs can be Null
+		' lhs may be Null
 		
 		Repeat
 			Local op:TOperatorSyntax
 			If Not op Then op = ParseOperator([TTokenKind.DotDot])
 			If op Then
 				Local rhs:IOrCompatibleExpressionSyntax = ParseOrCompatibleExpression()
-				' rhs can be Null
+				' rhs may be Null
 				
 				lhs = New TRangeExpressionSyntax(lhs, op, rhs)
 			Else
@@ -2134,6 +2144,7 @@ Type TParser Implements IParser
 		'             lt tokens during this, because the goal is to consider anything that looks
 		'             like a chain of comparisons as invalid
 		'       problem: "a < b(x > (y + z))" should not be parsed as a generic
+		
 		
 		
 		If Not parenlessCallStatement Then
@@ -2836,7 +2847,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolons or non-escaped line break)
-		Local token:TSyntaxToken = TryTakeToken([TTokenKind.Linebreak, TTokenKind.Semicolon])
+		Local token:TSyntaxToken = TryTakeToken(StatementSeparatorTokenKinds)
 		If Not token Then Return Null
 		
 		Return New TStatementSeparatorSyntax(token)

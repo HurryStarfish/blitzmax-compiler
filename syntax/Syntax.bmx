@@ -340,6 +340,7 @@ End Type
 Type TClassDeclarationSyntax Extends TTypeDeclarationSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
 	Field ReadOnly name:TNameSyntax
+	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
 	Field ReadOnly extendsKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly superClass:TTypeSyntax {nullable}
 	Field ReadOnly implementsKeyword:TSyntaxToken {nullable minor}
@@ -349,9 +350,10 @@ Type TClassDeclarationSyntax Extends TTypeDeclarationSyntax Final
 	Field ReadOnly body:TCodeBlockSyntax ' TODO: this type seems a bit unfitting - only declarations and visibility directives are allowed here; see enums
 	Field ReadOnly terminatorKeyword:TSyntaxToken {minor} ' TODO: move stuff to TTypeDeclarationSyntax?
 
-	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, extendsKeyword:TSyntaxToken, superClass:TTypeSyntax, implementsKeyword:TSyntaxToken, superInterfaces:TTypeListSyntax, modifiers:TTypeModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
+	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, typeParameters:TTypeParameterListSyntax, extendsKeyword:TSyntaxToken, superClass:TTypeSyntax, implementsKeyword:TSyntaxToken, superInterfaces:TTypeListSyntax, modifiers:TTypeModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
 		Self.initiatorKeyword = initiatorKeyword
 		Self.name = name
+		Self.typeParameters = typeParameters
 		Self.extendsKeyword = extendsKeyword
 		Self.superClass = superClass
 		Self.implementsKeyword = implementsKeyword
@@ -367,6 +369,7 @@ Type TClassDeclarationSyntax Extends TTypeDeclarationSyntax Final
 		Return ChildrenToArray( ..
 			initiatorKeyword, ..
 			name, ..
+			typeParameters, ..
 			extendsKeyword, ..
 			superClass, ..
 			implementsKeyword, ..
@@ -462,16 +465,18 @@ Type TCallableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Fi
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
 	Field ReadOnly operatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TCallableDeclarationNameSyntax
+	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
 	Field ReadOnly type_:TTypeSyntax
 	Field ReadOnly modifiers:TCallableModifierSyntax[]
 	Field ReadOnly metaData:TMetaDataSyntax {nullable}
 	Field ReadOnly body:TCodeBlockSyntax {nullable}
 	Field ReadOnly terminatorKeyword:TSyntaxToken {nullable minor}
 	
-	Method New(initiatorKeyword:TSyntaxToken, operatorKeyword:TSyntaxToken, name:TCallableDeclarationNameSyntax, type_:TTypeSyntax, modifiers:TCallableModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
+	Method New(initiatorKeyword:TSyntaxToken, operatorKeyword:TSyntaxToken, name:TCallableDeclarationNameSyntax, typeParameters:TTypeParameterListSyntax, type_:TTypeSyntax, modifiers:TCallableModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
 		Self.initiatorKeyword = initiatorKeyword
 		Self.operatorKeyword = operatorKeyword
 		Self.name = name
+		Self.typeParameters = typeParameters
 		Self.type_ = type_
 		Self.modifiers = modifiers
 		Self.metaData = metaData
@@ -485,6 +490,7 @@ Type TCallableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Fi
 			initiatorKeyword, ..
 			operatorKeyword, ..
 			name, ..
+			typeParameters, ..
 			type_, ..
 			modifiers, ..
 			metaData, ..
@@ -594,6 +600,23 @@ Type TCallableModifierSyntax Extends TModifierSyntax Final
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			token ..
+		)
+	End Method
+End Type
+
+
+
+Type TTypeParameterDeclaratorSyntax Extends TSyntax Final
+	Field ReadOnly name:TNameSyntax
+	
+	Method New(name:TNameSyntax)
+		Self.name = name
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			name ..
 		)
 	End Method
 End Type
@@ -1791,6 +1814,26 @@ End Type
 
 
 
+Type TTypeApplicationExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
+	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax
+	Field ReadOnly typeApplicationOperator:TTypeArgumentListSyntax
+	
+	Method New(expression:IPostfixCompatibleExpressionSyntax, typeApplicationOperator:TTypeArgumentListSyntax)
+		Self.expression = expression
+		Self.typeApplicationOperator = typeApplicationOperator
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			expression, ..
+			typeApplicationOperator ..
+		)
+	End Method
+End Type
+
+
+
 Type TTypeAssertionExpressionSyntax Extends TSyntax Implements IPostfixCompatibleExpressionSyntax Final
 	Field ReadOnly expression:IPostfixCompatibleExpressionSyntax
 	Field ReadOnly type_:TTypeSyntax
@@ -2051,12 +2094,14 @@ Type TTypeSyntax Extends TSyntax Final
 	Field ReadOnly colon:TSyntaxToken {nullable minor}
 	Field ReadOnly base:TTypeBaseSyntax {nullable} ' should only be null in the case of a void-returning callable type
 	Field ReadOnly marshallingModifier:TTypeMarshallingModifierSyntax {nullable}
+	Field ReadOnly typeArguments:TTypeArgumentListSyntax {nullable}
 	Field ReadOnly suffixes:TTypeSuffixSyntax[]
 	
-	Method New(colon:TSyntaxToken, base:TTypeBaseSyntax, marshallingModifier:TTypeMarshallingModifierSyntax, suffixes:TTypeSuffixSyntax[])
+	Method New(colon:TSyntaxToken, base:TTypeBaseSyntax, marshallingModifier:TTypeMarshallingModifierSyntax, typeArguments:TTypeArgumentListSyntax, suffixes:TTypeSuffixSyntax[])
 		Self.colon = colon
 		Self.base = base
 		Self.marshallingModifier = marshallingModifier
+		Self.typeArguments = typeArguments
 		Self.suffixes = suffixes
 		Verify Self
 	End Method
@@ -2066,6 +2111,7 @@ Type TTypeSyntax Extends TSyntax Final
 			colon, ..
 			base, ..
 			marshallingModifier, ..
+			typeArguments, ..
 			suffixes ..
 		)
 	End Method
@@ -2294,6 +2340,43 @@ End Type
 
 
 
+Type TTypeParameterDeclaratorListSyntax Extends TSyntax Final
+	Field ReadOnly elements:TTypeParameterDeclaratorListElementSyntax[]
+	
+	Method New(elements:TTypeParameterDeclaratorListElementSyntax[])
+		Self.elements = elements
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			elements ..
+		)
+	End Method
+End Type
+
+
+
+Type TTypeParameterDeclaratorListElementSyntax Extends TSyntax Final
+	Field ReadOnly comma:TSyntaxToken {nullable minor}
+	Field ReadOnly declarator:TTypeParameterDeclaratorSyntax {nullable}
+	
+	Method New(comma:TSyntaxToken, declarator:TTypeParameterDeclaratorSyntax)
+		Self.comma = comma
+		Self.declarator = declarator
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			comma, ..
+			declarator ..
+		)
+	End Method
+End Type
+
+
+
 Type TParenExpressionListSyntax Extends TSyntax Final
 	Field ReadOnly lparen:TSyntaxToken {minor}
 	Field ReadOnly expressionList:TExpressionListSyntax
@@ -2371,6 +2454,52 @@ Type TExpressionListElementSyntax Extends TSyntax Final
 		Return ChildrenToArray( ..
 			comma, ..
 			expression ..
+		)
+	End Method
+End Type
+
+
+
+Type TTypeParameterListSyntax Extends TSyntax Final
+	Field ReadOnly lchevron:TSyntaxToken {minor}
+	Field ReadOnly list:TTypeParameterDeclaratorListSyntax
+	Field ReadOnly rchevron:TSyntaxToken {minor}
+	
+	Method New(lchevron:TSyntaxToken, list:TTypeParameterDeclaratorListSyntax, rchevron:TSyntaxToken)
+		Self.lchevron = lchevron
+		Self.list = list
+		Self.rchevron = rchevron
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			lchevron, ..
+			list, ..
+			rchevron ..
+		)
+	End Method
+End Type
+
+
+
+Type TTypeArgumentListSyntax Extends TSyntax Final
+	Field ReadOnly lchevron:TSyntaxToken {minor}
+	Field ReadOnly list:TTypeListSyntax
+	Field ReadOnly rchevron:TSyntaxToken {minor}
+	
+	Method New(lchevron:TSyntaxToken, list:TTypeListSyntax, rchevron:TSyntaxToken)
+		Self.lchevron = lchevron
+		Self.list = list
+		Self.rchevron = rchevron
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			lchevron, ..
+			list, ..
+			rchevron ..
 		)
 	End Method
 End Type

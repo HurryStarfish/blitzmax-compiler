@@ -432,7 +432,7 @@ Type TParser Implements IParser
 	End Method
 	
 	Method GenerateMissingType:TTypeSyntax()
-		Return New TTypeSyntax(Null, New TQualifiedNameTypeBaseSyntax(GenerateMissingQualifiedName()), Null, [])
+		Return New TTypeSyntax(Null, New TQualifiedNameTypeBaseSyntax(GenerateMissingQualifiedName()), Null, Null, [])
 	End Method
 	
 	Method ReportError(error:String)
@@ -761,6 +761,8 @@ Type TParser Implements IParser
 			name = GenerateMissingName()
 		End If
 		
+		Local typeParameters:TTypeParameterListSyntax = ParseTypeParameterList()
+		
 		Local extendsKeyword:TSyntaxToken
 		Local superClass:TTypeSyntax
 		Local superInterfaces:TTypeListSyntax
@@ -819,7 +821,7 @@ Type TParser Implements IParser
 		Local terminatorKeyword:TSyntaxToken = TakeToken(terminatorTokenKind)
 		
 		Select kind
-			Case ETypeKind.Class Return New TClassDeclarationSyntax(initiatorKeyword, name, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Class Return New TClassDeclarationSyntax(initiatorKeyword, name, typeParameters, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
 			Case ETypeKind.Struct_ Throw "TODO"
 			Case ETypeKind.Interface_ Throw "TODO"
 			Default RuntimeError "Missing case"
@@ -929,6 +931,8 @@ Type TParser Implements IParser
 		Local operatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Operator_)
 		
 		Local name:TCallableDeclarationNameSyntax
+		Local typeParameters:TTypeParameterListSyntax
+		
 		If operatorKeyword Then
 			Local operatorName:TOperatorSyntax
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.Eq])
@@ -958,31 +962,31 @@ Type TParser Implements IParser
 				name = New TCallableDeclarationNameSyntax(GenerateMissingName())
 			End If
 		Else
-			Local identifierName:TNameSyntax = ParseName()
-			If identifierName Then
-				name = New TCallableDeclarationNameSyntax(identifierName)
+			Local keywordName:TSyntaxToken = TryTakeToken([TTokenKind.New_, TTokenKind.Delete_])
+			If keywordName Then
+				name = New TCallableDeclarationNameSyntax(keywordName)
 			Else
-				Local keywordName:TSyntaxToken = TryTakeToken([TTokenKind.New_, TTokenKind.Delete_])
-				If keywordName Then
-					name = New TCallableDeclarationNameSyntax(keywordName)
+				Local identifierName:TNameSyntax = ParseName()
+				If identifierName Then
+					name = New TCallableDeclarationNameSyntax(identifierName)
 				Else
 					ReportError "Expected " + initiatorKeyword.lexerToken.value.ToLower() + " name"
 					name = New TCallableDeclarationNameSyntax(GenerateMissingName())
 				End If
+				
+				typeParameters = ParseTypeParameterList()
 			End If
 		End If
-		
-		' TODO type params
 		
 		Local type_:TTypeSyntax = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
 		' generate a void-return-no-parameters type if no type can be parsed;
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+			type_ = New TTypeSyntax(Null, Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
 		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = New TTypeSyntax(type_.colon, type_.base, Null, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
 		Local modifiers:TCallableModifierSyntax[]
@@ -1004,7 +1008,7 @@ Type TParser Implements IParser
 			terminatorKeyword = TakeToken(terminatorTokenKind)
 		End If
 		
-		Return New TCallableDeclarationSyntax(initiatorKeyword, operatorKeyword, name, type_, modifiers, metaData, body, terminatorKeyword)
+		Return New TCallableDeclarationSyntax(initiatorKeyword, operatorKeyword, name, typeParameters, type_, modifiers, metaData, body, terminatorKeyword)
 		
 		Function ContainsKind:Int(array:TCallableModifierSyntax[], modifierKind:TTokenKind)
 			For Local m:TCallableModifierSyntax = EachIn array
@@ -1040,10 +1044,10 @@ Type TParser Implements IParser
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+			type_ = New TTypeSyntax(Null, Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
 		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = New TTypeSyntax(type_.colon, type_.base, Null, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
 		Local externSignatureAssignment:TExternSignatureAssignmentSyntax = ParseExternSignatureAssignment()
@@ -1156,6 +1160,22 @@ Type TParser Implements IParser
 		End If
 		
 		Return New TVariableDeclaratorSyntax(name, type_, initializer)
+	End Method
+	
+	'Method ParseTypeParameterDeclaration:TTypeParameterDeclarationSyntax() ' always succeeds
+	'	Local declarators:TVariableDeclaratorListSyntax = ParseTypeParameterDeclaratorList()
+	'	If Not declarators.elements Then
+	'		ReportError "Expected type parameter declaration"
+	'	End If
+	'	
+	'	Return New TTypeParameterDeclarationSyntax(declarators)
+	'End Method
+	
+	Method ParseTypeParameterDeclarator:TTypeParameterDeclaratorSyntax()
+		Local name:TNameSyntax = ParseName()
+		If Not name Then Return Null
+		
+		Return New TTypeParameterDeclaratorSyntax(name)
 	End Method
 	
 	Method ParseCodeBlockVariableDeclaration:TVariableDeclarationSyntax()
@@ -1658,7 +1678,7 @@ Type TParser Implements IParser
 	
 	Method ParseLValue:IExpressionSyntax()
 		' this must not attempt to parse a relational expression, otherwise there will be no = left over for the assignment
-		Return ParsePostfixCompatibleExpression() ' TODO: exclude call expressions
+		Return ParsePostfixCompatibleExpression(False) ' TODO: exclude call expressions
 	End Method
 	
 	Method ParseParenlessCallStatement:TParenlessCallStatementSyntax() ' backtracks
@@ -1666,12 +1686,8 @@ Type TParser Implements IParser
 		' so in any context where both are valid, this method must be called first
 		Local state:SParserState = SaveState()
 		
-		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression() ' TODO: exclude call expressions
+		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression(True)
 		If Not expression Then Return Null
-		If TCallExpressionSyntax(expression) Then
-			RestoreState state
-			Return Null
-		End If
 		
 		If Not IsValidType(expression) Then
 			RestoreState state
@@ -1681,6 +1697,7 @@ Type TParser Implements IParser
 			'If TTypeBindingExpressionSyntax(expression) Then Return True
 			If TMemberAccessExpressionSyntax(expression) Then Return True
 			If TIndexExpressionSyntax(expression) Then Return True
+			If TTypeApplicationExpressionSyntax(expression) Then Return True
 			'If TTypeAssertionExpressionSyntax(expression) Then Return Return IsValidType(TTypeAssertionExpressionSyntax(expression).expression)
 			If TParenExpressionSyntax(expression) Then Return IsValidType(TParenExpressionSyntax(expression).expression)
 			If TNameExpressionSyntax(expression) Then Return True
@@ -1695,9 +1712,9 @@ Type TParser Implements IParser
 	Method ParseExpressionStatement:TExpressionStatementSyntax() ' backtracks
 		Local state:SParserState = SaveState()
 		
-		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression()
+		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression(False)
 		If Not expression Then Return Null
-		Assert Not (TMemberAccessExpressionSyntax(expression) Or TIndexExpressionSyntax(expression)) Else "ParseExpressionStatement parsed expression type that should have been parsed by ParseParenlessCallStatement" ' Or TTypeBindingExpressionSyntax Or TTypeAssertionExpressionSyntax
+		Assert Not (TMemberAccessExpressionSyntax(expression) Or TIndexExpressionSyntax(expression) Or TTypeApplicationExpressionSyntax(expression)) Else "ParseExpressionStatement parsed an expression type that should have been parsed by ParseParenlessCallStatement" '  Or TTypeAssertionExpressionSyntax
 		
 		If Not IsValidType(expression) Then
 			RestoreState state
@@ -1824,7 +1841,6 @@ Type TParser Implements IParser
 		If Not lhs Then Return Null
 		
 		Repeat
-			' TODO: when introducing generics, remove token kind "Neq"?
 			Local op:TOperatorSyntax
 			If Not op Then op = ParseOperator([TTokenKind.Eq])
 			If Not op Then op = ParseOperator([TTokenKind.Neq])
@@ -1983,7 +1999,7 @@ Type TParser Implements IParser
 			If castExpression Then
 				Return castExpression
 			Else
-				Return ParsePostfixCompatibleExpression()
+				Return ParsePostfixCompatibleExpression(False)
 			End If
 		End If
 	End Method
@@ -2018,28 +2034,26 @@ Type TParser Implements IParser
 		Return New TTypeCastExpressionSyntax(targetType, arg)
 	End Method
 	
-	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax()
+	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax(parenlessCallStatement:Int)
 		Local arg:IPostfixCompatibleExpressionSyntax = ParsePrimaryExpression()
 		If Not arg Then arg = ParseMemberAccessExpression(Null) ' global scope access (leading dot)
 		If Not arg Then Return Null
 		
-		Return ParsePostfixCompatibleExpression(arg)
+		Return ParsePostfixCompatibleExpression(arg, parenlessCallStatement)
 	End Method
 	
-	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
+	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int)
 		Local postfixExpression:IPostfixCompatibleExpressionSyntax
-		'postfixExpression = ParseTypeBindingExpression(arg);   If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
-		postfixExpression = ParseMemberAccessExpression(arg);  If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
-		postfixExpression = ParseIndexExpression(arg);         If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
-		postfixExpression = ParseCallExpression(arg);          If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
-		'postfixExpression = ParseTypeAssertionExpression(arg); If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
+		postfixExpression = ParseMemberAccessExpression(arg);    If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
+		postfixExpression = ParseIndexExpression(arg);           If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
+		If Not parenlessCallStatement Then
+			postfixExpression = ParseCallExpression(arg);            If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
+		End If
+		postfixExpression = ParseTypeApplicationExpression(arg, parenlessCallStatement); If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
+		'postfixExpression = ParseTypeAssertionExpression(arg);   If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
 		Return arg
 	End Method
 		
-	Method ParseTypeBindingExpression:IExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax) ' backtracks
-		Throw "TODO"
-	End Method
-	
 	Method ParseMemberAccessExpression:TMemberAccessExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
 		Local dot:TSyntaxToken = TryTakeToken(TTokenKind.Dot)
 		If Not dot Then Return Null
@@ -2065,6 +2079,97 @@ Type TParser Implements IParser
 		If Not callOperator Then Return Null
 		
 		Return New TCallExpressionSyntax(arg, callOperator)
+	End Method
+	
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int) ' backtracks
+		If Not (TNameExpressionSyntax(arg) Or TMemberAccessExpressionSyntax(arg)) Then
+			Return Null ' type arguments can only appear after an identifier
+		End If
+		
+		If currentToken.Kind() <> TTokenKind.Lt Then Return Null
+		
+		Local state:SParserState = SaveState()
+		
+		Local errorsBefore:Int = parseErrors.Count()
+		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		If Not typeApplicationOperator Then Return Null
+		Local errorsAfter:Int = parseErrors.Count()
+		If errorsBefore <> errorsAfter Then
+			' TODO: might be better to cancel only in the case of certain skipped tokens
+			'       (e.g. "For x = a<b To c>d") or missing chevrons/parentheses/brackets
+			'       (e.g. "a<b(c>d)")
+			RestoreState state
+			Return Null
+		End If
+		Rem
+		Function HasMissingTokens:Int(s:ISyntax)
+			For Local child:ISyntaxOrSyntaxToken = EachIn s.GetChildren()
+				Local token:TSyntaxToken = TSyntaxToken(child)
+				If token Then
+					If token.lexerToken.missing Then
+						Select token.Kind()
+							Case TTokenKind.LParen, TTokenKind.RParen, TTokenKind.LBracket, TTokenKind.RBracket, TTokenKind.Lt, TTokenKind.Gt Return True
+							' TODO: problem: "For x = a<b To c>d"
+						End Select
+					End If
+				Else
+					If HasMissingTokens(ISyntax(child)) Then Return True
+				End If
+			Next
+			Return False
+		End Function
+		If HasMissingTokens(typeApplicationOperator) Then
+			RestoreState state
+			Return Null
+		End If
+		End Rem
+		
+		
+		' TODO: if there are errors while parsing the type list, skip ahead to the gt;
+		'       if the gt is found, examine the token after it as if it was successful
+		'       this way, expressions like "a<b & c>(d)" will be parsed as generic
+		'       problem: "a<b And c>(d)" and "a<b Or c>(d)" should not be parsed as a type list
+		'       idea: if the if the type list parse fails, skip ahead to the gt, using And and Or
+		'             as additional terminators; we do not need to be concerned about skipping
+		'             lt tokens during this, because the goal is to consider anything that looks
+		'             like a chain of comparisons as invalid
+		'       problem: "a < b(x > (y + z))" should not be parsed as a generic
+		
+		
+		If Not parenlessCallStatement Then
+			If Not CurrentTokenCanAppearAfterTypeArgumentList(Self) Then
+				RestoreState state
+				Return Null
+			End If
+			Function CurrentTokenCanAppearAfterTypeArgumentList:Int(self_:TParser)
+				' this rejects all tokens that can be the start of an expression appearing on the rhs of
+				' a relational expression but not appear directly after a type argument list in valid code
+				Select self_.currentToken.Kind()
+					' prefix operators, excluding those that double as binary operators
+					Case TTokenKind.Not_, TTokenKind.Asc_, TTokenKind.Chr_, TTokenKind.Len_, TTokenKind.SizeOf_, TTokenKind.Varptr_
+						Return False
+					' open bracket of array literal or indexing (cannot be a type suffix in this context)
+					Case TTokenKind.LBracket ' avoids expensive path in ParsePrimaryExpression
+						Return False
+					' open parenthesis of call (takes priority over paren expression after a possible type argument list)
+					Case TTokenKind.LParen ' avoids expensive path in ParsePrimaryExpression
+						Return True
+					Default
+						' types with keyword base
+						If self_.ParseKeywordTypeBase() Then
+							Return False
+						End If
+						' primary expressions, excluding paren expression
+						If self_.ParsePrimaryExpression() Then
+							Return False
+						End If
+						' anything else
+						Return True
+				End Select
+			End Function
+		End If
+		
+		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
 	End Method
 	
 	Method ParseTypeAssertionExpression:TTypeAssertionExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
@@ -2247,33 +2352,53 @@ Type TParser Implements IParser
 			marshallingModifier = ParseTypeMarshallingModifier()
 		End If
 		
-		Local suffixes:TTypeSuffixSyntax[]
-		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
-		Repeat
-			Local stateBeforeSuffix:SParserState
-			If typeParseMode = ETypeParseMode.Noncommittal Then stateBeforeSuffix = SaveState()
-			Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)
-			If suffix Then
-				If HasAnyArrayDimensions(suffix) Then
-					If arrayDimensionsOption = EArrayDimensionsOption.Disallow Then
-						If typeParseMode = ETypeParseMode.Noncommittal Then
-							' this suffix should not have been parsed, is probably an index operator instead
-							RestoreState stateBeforeSuffix
-							Exit
-						End If
-					Else
-						' if dimensions have been specified, it must have been the last suffix
-						suffixes :+ [suffix]
-						Exit
+		Local typeArgumentList:TTypeArgumentListSyntax
+		If TQualifiedNameTypeBaseSyntax(base) Then
+			If typeParseMode = ETypeParseMode.Noncommittal Then
+				If currentToken.Kind() = TTokenKind.Lt Then
+					Local state:SParserState = SaveState()
+					Local errorsBefore:Int = parseErrors.Count()
+					typeArgumentList = ParseTypeArgumentList()
+					Local errorsAfter:Int = parseErrors.Count()
+					If errorsBefore <> errorsAfter Then
+						RestoreState state
+						typeArgumentList = Null
 					End If
 				End If
-				suffixes :+ [suffix]
 			Else
-				Exit
+				typeArgumentList = ParseTypeArgumentList()
 			End If
-		Forever
+		End If
 		
-		Return New TTypeSyntax(colon, base, marshallingModifier, suffixes)
+		Local suffixes:TTypeSuffixSyntax[]
+		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
+		If currentToken.Kind() <> TTokenKind.Lt Then
+			Repeat
+				Local stateBeforeSuffix:SParserState
+				If typeParseMode = ETypeParseMode.Noncommittal Then stateBeforeSuffix = SaveState()
+				Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)
+				If suffix Then
+					If HasAnyArrayDimensions(suffix) Then
+						If arrayDimensionsOption = EArrayDimensionsOption.Disallow Then
+							If typeParseMode = ETypeParseMode.Noncommittal Then
+								' this suffix should not have been parsed, is probably an index operator instead
+								RestoreState stateBeforeSuffix
+								Exit
+							End If
+						Else
+							' if dimensions have been specified, it must have been the last suffix
+							suffixes :+ [suffix]
+							Exit
+						End If
+					End If
+					suffixes :+ [suffix]
+				Else
+					Exit
+				End If
+			Forever
+		End If
+		
+		Return New TTypeSyntax(colon, base, marshallingModifier, typeArgumentList, suffixes)
 	End Method
 	
 	Method ParseSuperType:TTypeSyntax()
@@ -2303,7 +2428,6 @@ Type TParser Implements IParser
 	Method ParseTypeBase:TTypeBaseSyntax()
 		Local typeBase:TTypeBaseSyntax
 		typeBase = ParseQualifiedNameTypeBase(); If typeBase Then Return typeBase
-		' TODO: ParseTypeBindingOperator?
 		typeBase = ParseKeywordTypeBase();       If typeBase Then Return typeBase
 		typeBase = ParseSigilTypeBase();         If typeBase Then Return typeBase
 		Return Null
@@ -2451,6 +2575,27 @@ Type TParser Implements IParser
 		Return New TVariableDeclaratorListSyntax(elements)
 	End Method
 	
+	Method ParseTypeParameterDeclaratorList:TTypeParameterDeclaratorListSyntax() ' always succeeds
+		Local elements:TTypeParameterDeclaratorListElementSyntax[]
+		Repeat
+			Local comma:TSyntaxToken
+			If elements Then
+				comma = TryTakeToken(TTokenKind.Comma)
+				If Not comma Then Exit
+			End If
+			Local declarator:TTypeParameterDeclaratorSyntax = ParseTypeParameterDeclarator()
+			If Not declarator Then
+				If Not elements Then
+					Exit
+				Else
+					ReportError "Expected type variable declarator"
+				End If
+			End If
+			elements :+ [New TTypeParameterDeclaratorListElementSyntax(comma, declarator)]
+		Forever
+		Return New TTypeParameterDeclaratorListSyntax(elements)
+	End Method
+	
 	Method ParseParenExpressionList:TParenExpressionListSyntax(emptyElementsOption:EEmptyElementsOption)
 		Local lparen:TSyntaxToken = TryTakeToken(TTokenKind.LParen)
 		If Not lparen Then Return Null
@@ -2496,6 +2641,28 @@ Type TParser Implements IParser
 			elements :+ [New TExpressionListElementSyntax(comma, expression)]
 		Forever
 		Return New TExpressionListSyntax(elements)
+	End Method
+	
+	Method ParseTypeParameterList:TTypeParameterListSyntax()
+		Local lchevron:TSyntaxToken = TryTakeToken(TTokenKind.Lt)
+		If Not lchevron Then Return Null
+		
+		Local list:TTypeParameterDeclaratorListSyntax = ParseTypeParameterDeclaratorList()
+		
+		Local rchevron:TSyntaxToken = TakeToken(TTokenKind.Gt)
+		
+		Return New TTypeParameterListSyntax(lchevron, list, rchevron)
+	End Method
+	
+	Method ParseTypeArgumentList:TTypeArgumentListSyntax()
+		Local lchevron:TSyntaxToken = TryTakeToken(TTokenKind.Lt)
+		If Not lchevron Then Return Null
+		
+		Local list:TTypeListSyntax = ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Allow, EArrayDimensionsOption.Disallow)
+		
+		Local rchevron:TSyntaxToken = TakeToken(TTokenKind.Gt)
+		
+		Return New TTypeArgumentListSyntax(lchevron, list, rchevron)
 	End Method
 	
 	Method ParseTypeList:TTypeListSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' always succeeds

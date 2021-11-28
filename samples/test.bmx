@@ -1,5 +1,44 @@
 SuperStrict
 Framework BRL.Something.SomethingElse ' this is a comment
+
+'Local m:BRL.Collections.IMap<Int, BRL.Collections.IList<Int>>
+'Type TTest<T>
+'	Method M<A, B>:R(_:P) Abstract
+'End Type
+
+'Local x:TList<Int>
+'Local y:Object = STest<Int> Ptr(a)
+'Local z:Object = A<B<C>>()
+
+Rem
+r = a<b   ' comparison
+g = a<b>   ' generic function ptr (before: error)
+r = a<b>c   ' comparisons
+g = a<b>(c)   ' generic function call (before: comparisons)
+g = a<(b%)>(c)   ' generic function call (before: comparisons)
+r = a<(b)>(c)   ' comparisons (future: generic function call)
+g = (a<b>)(c)   ' generic function call (before: error)
+r = (a)<b>(c)   ' comparisons
+r = a<b And c>(d)   ' comparisons
+r = a<b & c>(d)   ' comparisons (parsed as "a < (b & c) > d") (future: generic function call with the type argument "b & c"
+r = a<-b>(d)   ' comparisons, or generic call with an error (currently comparisons)
+r = f(a<b,c>d)   ' comparisons
+g = f(a<b,c>(d))   ' generic call (before: comparisons)
+g = f(a<b,c>.d)   ' generic member access (before: comparisons)
+g = f(a<b,c>(.d))   ' generic call (before: comparisons)
+r = f(a<b,(c>.d))   ' comparisons
+r = a<b(x>(y+z))   ' comparisons
+
+
+f
+f x
+f<a>   ' generic call (before: error)
+f<a>b   ' generic call (before: error)
+f<a>b,c   ' generic call (before: error)
+
+If a < b & c > d
+While a < b & c > d
+End Rem
 'Local i:Int[] = [1, 2, 3]
 Rem
 Local arr:Int[,]
@@ -67,9 +106,14 @@ End Rem
 
 'a = TMyType.SMyStruct Ptr a * b + c
 
-'For Local i:Int 1 To 10
+'Print a:Int
+'For Local i:Int == 1 To 10 + x
 '	X
 'Next
+
+'Function F:Int((a:Int)
+'	X
+'End Function
 
 'For j = EachIn A
 '	Y
@@ -103,5 +147,11 @@ End Rem
 'x = A[3] B
 'Function F()'(x:i[1] = 1)
 'End Function
-a :+ b
+'a :+ b
+
+
+
+
+
+
 

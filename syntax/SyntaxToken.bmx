@@ -24,6 +24,8 @@ Type TSyntaxToken Implements ISyntaxOrSyntaxToken Final
 	End Method
 	
 	Method ToString:String() Override
+		Local codeRange:String
+		'codeRange = "   " + Self.CodeRange().ToString()
 		Local trivia:String
 		' TODO
 		'If leadingTrivia Or trailingTrivia Then
@@ -35,7 +37,7 @@ Type TSyntaxToken Implements ISyntaxOrSyntaxToken Final
 		'End If
 		Local missing:String
 		If lexerToken.missing Then missing = " (missing)"
-		Return "TSyntaxToken " + lexerToken.kind.ToString() + " " + Escape(lexerToken.value) + trivia + missing
+		Return "TSyntaxToken " + lexerToken.kind.ToString() + " " + Escape(lexerToken.value) + codeRange + trivia + missing
 		
 		Function TriviaToString:String(lexerToken:TLexerToken[])
 			Local str:String

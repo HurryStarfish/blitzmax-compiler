@@ -248,7 +248,7 @@ Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	
 	Global Eof:TTokenKind = New TTokenKind("EOF", Null) ' no equivalent in the flex file
 	
-	Global InvalidCode:TTokenKind = New TTokenKind("InvalidCode", Null) ' no equivalent in the flex file
+	Global InvalidCode:TTokenKind = New TTokenKind("InvalidCode", Null)
 	
 End Type
 

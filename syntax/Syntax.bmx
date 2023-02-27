@@ -225,18 +225,54 @@ End Type
 
 Type TImportDirectiveSyntax Extends TSyntax Implements IHeaderDirectiveSyntax Final
 	Field ReadOnly keyword:TSyntaxToken {minor}
-	Field ReadOnly importName:TImportNameSyntax
+	Field ReadOnly importSource:TImportSourceSyntax
 	
-	Method New(keyword:TSyntaxToken, importName:TImportNameSyntax)
+	Method New(keyword:TSyntaxToken, importSource:TImportSourceSyntax)
 		Self.keyword = keyword
-		Self.importName = importName
+		Self.importSource = importSource
 		Verify Self
 	End Method
 	
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			keyword, ..
-			importName ..
+			importSource ..
+		)
+	End Method
+End Type
+
+
+
+' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Include Directive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+'Interface IDirectiveSyntax Extends ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax
+'End Interface
+
+
+
+'Type TIncludeDirectiveSyntax Extends TSyntax Implements IDirectiveSyntax Final
+Type TIncludeDirectiveSyntax Extends TSyntax Implements ICodeBlockElementSyntax, IExternBlockElementSyntax, IEnumMemberSyntax Final
+	Field ReadOnly keyword:TSyntaxToken {minor}
+	Field ReadOnly filePath:TStringLiteralExpressionSyntax
+	Field ReadOnly body:TCodeBodySyntax
+	Field ReadOnly eofToken:TSyntaxToken {minor}
+		
+	Method New(keyword:TSyntaxToken, filePath:TStringLiteralExpressionSyntax, body:TCodeBodySyntax, eofToken:TSyntaxToken)
+		Self.keyword = keyword
+		Self.filePath = filePath
+		Self.body = body
+		Self.eofToken = eofToken
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			keyword, ..
+			filePath, ..
+			body, ..
+			eofToken ..
 		)
 	End Method
 End Type
@@ -2680,23 +2716,23 @@ End Type
 
 
 
-Type TImportNameSyntax Extends TSyntax Final
+Type TImportSourceSyntax Extends TSyntax Final
 	' exactly one field must be non-null
 	Field ReadOnly moduleName:TQualifiedNameSyntax {nullable}
-	Field ReadOnly fileName:TStringLiteralExpressionSyntax {nullable}
+	Field ReadOnly filePath:TStringLiteralExpressionSyntax {nullable}
 	
 	Method New(moduleName:TQualifiedNameSyntax)
 		Self.moduleName = moduleName
 	End Method
 	
-	Method New(fileName:TStringLiteralExpressionSyntax)
-		Self.fileName = fileName
+	Method New(filePath:TStringLiteralExpressionSyntax)
+		Self.filePath = filePath
 	End Method
 
 	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
 		Return ChildrenToArray( ..
 			moduleName, ..
-			fileName ..
+			filePath ..
 		)
 	End Method
 End Type

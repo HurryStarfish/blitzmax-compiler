@@ -1,6 +1,7 @@
 SuperStrict
 Import "IParser.bmx"
 Import "../lexer/ILexer.bmx"
+Import "../lexer/NullLexer.bmx"
 Import "../syntax/Syntax.bmx"
 
 
@@ -141,13 +142,16 @@ End Type
 
 Public
 
-Type TParser Implements IParser
+Type TParser Implements IParser Final
 	
-	Field ReadOnly lexer:ILexer
 	Field currentToken:TSyntaxToken
-		
+	
 	Private
 	Global StatementSeparatorTokenKinds:TTokenKind[] = [TTokenKind.Linebreak, TTokenKind.Semicolon]
+	
+	Field ReadOnly filePath:String
+	Field ReadOnly createLexer:ILexer(filePath:String)
+	Field ReadOnly lexer:ILexer
 	
 	Field nextLexerToken:TLexerToken
 	Field nextLeadingTrivia:TLexerToken[]
@@ -158,9 +162,18 @@ Type TParser Implements IParser
 	Method New() End Method
 	
 	Public
-	Method New(lexer:ILexer)
-		Self.lexer = lexer
-		AdvanceToNextSyntaxToken()
+	Method New(filePath:String, createLexer:ILexer(filePath:String))
+		Self.filePath = filePath
+		Self.createLexer = createLexer
+		
+		Try
+			Self.lexer = createLexer(filePath)
+			AdvanceToNextSyntaxToken()
+		Catch ex:TLexerFileReadException
+			Self.lexer = New TNullLexer
+			AdvanceToNextSyntaxToken()
+			ReportError ex.message
+		End Try
 	End Method
 	
 	Method Errors:TList() Override '<TParseError>
@@ -458,17 +471,9 @@ Type TParser Implements IParser
 	' most Parse* methods immediately either fail or lock themselves into success after examining
 	' the first token at the current position (making failure cheap), but some backtrack
 	
-	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Top-Level ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Top-Level ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
 	Method ParseCompilationUnit:TCompilationUnitSyntax() Override ' always succeeds
-		' TODO: should include directives be expanded during lexing, parsing, or semantic analysis?
-		'       the advantage of lexing is not having to worry about header vs. body content
-		'       and may thus allow making imports more flexible (usable anywhere?),
-		'       the advantage of parsing is not having to build multi-file handling into the lexer
-		'       and being able to have the expanded code in the syntax tree
-		'       the advantage of semantic analysis is keeping both the lexer and the parser simpler
-		'       and being able to represent include directives as simple nodes in the syntax tree
-		
 		Local header:TCodeHeaderSyntax = ParseCodeHeader()
 		Local body:TCodeBodySyntax = ParseCodeBody()
 		Local eofToken:TSyntaxToken = TakeToken(TTokenKind.Eof)
@@ -615,6 +620,7 @@ Type TParser Implements IParser
 	Method ParseCodeBlockElement:ICodeBlockElementSyntax()
 		Local element:ICodeBlockElementSyntax
 		element = ParseStatementSeparator();     If element Then Return element
+		element = ParseIncludeDirective();       If element Then Return element
 		element = ParseExternBlock();            If element Then Return element
 		element = ParseVisibilityDirective();    If element Then Return element
 		element = ParseDeclarationOrStatement(); If element Then Return element
@@ -690,18 +696,86 @@ Type TParser Implements IParser
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Import_)
 		If Not keyword Then Return Null
 		
-		Local fileName:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
-		If fileName Then Return New TImportDirectiveSyntax(keyword, New TImportNameSyntax(fileName))
+		Local filePath:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
+		If filePath Then Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(filePath))
 		
 		Local moduleName:TQualifiedNameSyntax = ParseModuleName()
-		If moduleName Then Return New TImportDirectiveSyntax(keyword, New TImportNameSyntax(moduleName))
+		If moduleName Then Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(moduleName))
 		
-		ReportError "Expected file or module name"
-		Return New TImportDirectiveSyntax(keyword, New TImportNameSyntax(GenerateMissingQualifiedName()))
+		ReportError "Expected file path or module name"
+		Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(GenerateMissingQualifiedName()))
 	End Method
 	
 	Method ParseModuleName:TQualifiedNameSyntax()
 		Return ParseQualifiedName()
+	End Method
+	
+	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Include Directive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	
+	Method ParseIncludeDirective:TIncludeDirectiveSyntax()
+		' Include directives could be expanded during lexing, parsing, or semantic analysis,
+		' each with different advantages and disadvantages
+		'       the advantage of lexing is not having to worry about header vs. body content
+		'       and may thus allow making imports more flexible (usable anywhere?),
+		'       the advantage of parsing is not having to build multi-file handling into the lexer
+		'       and being able to have the expanded code in the syntax tree
+		'       the advantage of semantic analysis is keeping both the lexer and the parser simpler
+		'       and being able to represent include directives as simple nodes in the syntax tree
+		' lexing:
+		'   - no need to distinguish between header and body content
+		'   - can be usable almost anywhere, independent of syntactic structures
+		'     e.g.: Include "type header.bmx"; Field f:Int; Include "type terminator.bmx"
+		'   - new tokens have to be created for every instance of Include, no reuse possible
+		'   - additional lexer complexity for keeping track of token locations (for errors, refactoring)
+		' parsing:
+		'   - can be made usable in most places as long as it conforms to certain syntactic constraints
+		'     e.g.: Type T; Include "type members.bmx"; End Type
+		'   - distinguishable from normal code in the syntax tree (easy refactoring and error reporting)
+		'   - additional parser complexity
+		'     - requires some special handling for the node to be legal in different context
+		'     - requires different parsing "entry points" depending on context
+		' semantic analysis:
+		'   - can be a simple node with no expanded code as children
+		'   - very limited in where the Include can appear
+		'   - complicates symbol resolution in the including file and parsing of the included file
+		
+		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Include_)
+		If Not keyword Then Return Null
+		
+		Local filePath:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
+		If Not filePath Then
+			ReportError "Expected file path"
+			filePath = New TStringLiteralExpressionSyntax(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
+		End If
+		Local filePathStr:String = filePath.value.lexerToken.value
+		Assert filePathStr.StartsWith("~q") And filePathStr.EndsWith("~q") Else "Quotes missing from string literal"
+		filePathStr = filePathStr[1..filePathStr.length - 1]
+
+		Function CombinePaths:String(includingFilePath:String, includedFilePath:String) ' TODO: get a library for this (cpath?)
+			If IsAbsolutePath(includedFilePath) Then
+				Return includedFilePath
+			Else
+				Return StripSlash(includingFilePath[..includingFilePath.length - StripDir(includingFilePath).length]) + "/" + includedFilePath
+			End If
+			Function IsAbsolutePath:Int(path:String)
+				? Win32
+					Return path.length >= 3 And (path[0] >= Asc("A") And path[0] <= Asc("Z") Or path[0] >= Asc("a") And path[0] <= Asc("z")) And path[1] = Asc(":") And (path[2] = "/" Or path[2] = "\") Or path.StartsWith("\")
+				? MacOS Or OSX Or iOS Or Linux Or Android Or RaspberryPi
+					Return path.StartsWith("/")
+				? Not (Win32 Or MacOS Or OSX Or iOS Or Linux Or Android Or RaspberryPi)
+					Not implemented
+				?
+			End Function
+		End Function
+		
+		Local parser:TParser = New TParser(CombinePaths(Self.filePath, filePathStr), Self.createLexer)
+		Local body:TCodeBodySyntax = parser.ParseCodeBody()
+		Local eofToken:TSyntaxToken = parser.TakeToken(TTokenKind.Eof)
+		For Local error:TParseError = EachIn parser.parseErrors
+			parseErrors.AddLast error
+		Next
+		
+		Return New TIncludeDirectiveSyntax(keyword, filePath, body, eofToken)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Declarations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

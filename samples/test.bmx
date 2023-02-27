@@ -1,5 +1,10 @@
 SuperStrict
-Framework BRL.Something.SomethingElse ' this is a comment
+Framework BRL.StandardIO ' this is a comment
+Include "test_include.bmx"
+
+
+Local x:T = New T
+
 
 'Local m:BRL.Collections.IMap<Int, BRL.Collections.IList<Int>>
 'Type TTest<T>

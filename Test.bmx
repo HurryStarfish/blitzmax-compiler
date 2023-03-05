@@ -7,8 +7,10 @@ Import BRL.StandardIO
 Import "lexer/Lexer.bmx"
 Import "parser/Parser.bmx"
 
+Global testfiledir:String = CurrentDir() + "/samples/"
 Global testfilename:String = "test.bmx"
-Global testfilepath:String = CurrentDir() + "/samples/" + testfilename
+Global testfilepath:String = testfiledir + testfilename
+StandardIOStream = New TMultiStreamWrapper([StandardIOStream, WriteFile(testfiledir + "output.txt")])
 
 
 
@@ -46,8 +48,8 @@ End Rem
 
 Local ms1:Int = MilliSecs()
 
-TestLexer 'False
-TestParserTokens 'False
+'TestLexer 'False
+'TestParserTokens 'False
 TestParser 'False
 
 Local ms2:Int = MilliSecs()
@@ -58,13 +60,13 @@ Function TestLexer(doPrint:Int = True)
 	Local lexer:ILexer = New TLexer(testfilepath)
 	Repeat
 		Local token:TLexerToken = lexer.NextToken()
-		If token = EOFToken Then Exit
+		If token.kind = TTokenKind.Eof Then Exit
 		If doPrint Then Print token.ToString()
 	Forever
 End Function
 
 Function TestParserTokens(doPrint:Int = True)
-	Local parser:TParser = New TParser(New TLexer(testfilepath))
+	Local parser:TParser = New TParser(testfilepath, CreateLexer)
 	Repeat
 		Local token:TSyntaxToken = parser.currentToken
 		If doPrint Then
@@ -89,24 +91,204 @@ Function TestParserTokens(doPrint:Int = True)
 			Print str
 		End If
 		parser.AdvanceToNextSyntaxToken
-		If token.lexerToken = EOFToken Then Exit
+		If token.lexerToken.kind = TTokenKind.Eof Then Exit
 	Forever
 End Function
 
 Function TestParser(doPrint:Int = True)
-	Local parser:IParser = New TParser(New TLexer(testfilepath))
+	Local parser:IParser = New TParser(testfilepath, CreateLexer)
 	Local x:ISyntax = parser.ParseCompilationUnit()
 	If doPrint Then
 		For Local error:TParseError = EachIn parser.Errors()
 			Print "PARSE ERROR: " + error.ToString()
-			Notify "PARSE ERROR: " + error.ToString()
+			'Notify "PARSE ERROR: " + error.ToString()
 		Next
 		Print SyntaxToString(x)
 		
 		Print "-------------------------"
 		
-		Print SyntaxToCode(x)
+		'Print SyntaxToCode(x)
+		''DebugStop
+		''VisitSyntax New TTestVisitor, x
+		'Print "~~~~~~~~~~~~"
+		VisitSyntax New TGenTestVisitor, x
 	End If
 End Function
 
 
+
+Function CreateLexer:ILexer(filePath:String)
+	Return New TLexer(filePath)
+End Function
+
+
+
+Type TGenTestVisitor Extends TSyntaxVisitor
+	Field str:String = ""
+	Method VisitTopDown(s:TSyntax) ' combined instead of separate visitors because of reflection bug
+		If TStatementSeparatorSyntax(s) Then
+			If str And Not str.EndsWith("<-") Then
+				Print str
+			End If
+			str = ""
+		Else If IStatementSyntax(s) Then
+			Local sstr:String = SyntaxToCode(s)
+			If sstr.Find("'") <> -1 Then sstr = sstr[..sstr.Find("'")]
+			str :+ sstr + "   <-"
+		End If
+	End Method
+	Method VisitTopDown(s:TRelationalExpressionSyntax)
+		str :+ " rel"
+	End Method
+	Method VisitTopDown(s:TTypeApplicationExpressionSyntax)
+		str :+ " gen"
+	End Method
+End Type
+
+
+
+Type TTestVisitor Extends TSyntaxVisitor
+	Rem
+	Method VisitTopDown(f:TForStatementSyntax)
+		Print "Found For statement at:"
+		Print f.CodeRange().ToString()
+	End Method
+	Method VisitTopDown(f:TExpressionListSyntax)
+		Print "Found expression list at:"
+		DebugStop
+		Print f.CodeRange().ToString()
+	End Method
+	End Rem
+	Method VisitTopDown(f:ISyntax)
+		Handle f
+	End Method
+	
+	'Method VisitTopDown(f:TSyntaxToken)
+	'	Handle f
+	'End Method
+
+	Method Handle(f:ISyntaxOrSyntaxToken)
+		'If Not IStatementSyntax(f) Then Return
+		Print "Found " + TTypeId.ForObject(f).Name() + " at:"
+		Print ISyntax(f).CodeRange().ToString()
+	End Method
+	
+	
+End Type
+
+
+
+
+
+Type TMultiStreamWrapper Extends TStream Final ' TODO: exception handling
+	Field ReadOnly streams:TStream[]
+	
+	Method New(streams:TStream[])
+		Self.streams = streams
+	End Method
+	
+	Method Flush() Override
+		For Local s:TStream = EachIn streams
+			s.Flush
+		Next
+	End Method
+	
+	Method Close() Override
+		For Local s:TStream = EachIn streams
+			s.Close
+		Next
+	End Method
+	
+	Method Read:Long(buf:Byte Ptr, count:Long) Override
+		Throw "no"
+	End Method
+	
+	Method Write:Long(buf:Byte Ptr, count:Long) Override
+		Local writtenMin:Long = -1
+		For Local s:TStream = EachIn streams
+			Local written:Long = s.Write(buf, count)
+			If writtenMin = -1 Or written < writtenMin Then writtenMin = written
+		Next
+		Return writtenMin
+	End Method
+	
+	Method ReadByte:Int() Override
+		Throw "no"
+	End Method
+	
+	Method WriteByte(n:Int) Override
+		For Local s:TStream = EachIn streams
+			s.WriteByte n
+		Next
+	End Method
+	
+	Method ReadShort:Int() Override
+		Throw "no"
+	End Method
+	
+	Method WriteShort(n:Int) Override
+		For Local s:TStream = EachIn streams
+			s.WriteShort n
+		Next
+	End Method
+	
+	Method ReadInt:Int() Override
+		Throw "no"
+	End Method
+	
+	Method WriteInt(n:Int) Override
+		For Local s:TStream = EachIn streams
+			s.WriteInt n
+		Next
+	End Method
+	
+	Method ReadFloat:Float() Override
+		Throw "no"
+	End Method
+	
+	Method WriteFloat(n:Float) Override
+		For Local s:TStream = EachIn streams
+			s.WriteFloat n
+		Next
+	End Method
+	
+	Method ReadDouble:Double() Override
+		Throw "no"
+	End Method
+	
+	Method WriteDouble(n:Double) Override
+		For Local s:TStream = EachIn streams
+			s.WriteDouble n
+		Next
+	End Method
+	
+	Method ReadLine:String() Override
+		Throw "no"
+	End Method
+	
+	Method WriteLine:Int(t:String) Override
+		For Local s:TStream = EachIn streams
+			s.WriteLine t
+		Next
+	End Method
+	
+	Method ReadString:String(n:Int) Override
+		Throw "no"
+	End Method
+	
+	Method WriteString(t:String) Override
+		For Local s:TStream = EachIn streams
+			s.WriteString t
+		Next
+	End Method
+	
+	Method ReadObject:Object() Override
+		Throw "no"
+	End Method
+	
+	Method WriteObject(obj:Object) Override
+		For Local s:TStream = EachIn streams
+			s.WriteObject obj
+		Next
+	End Method
+End Type

@@ -5,8 +5,6 @@ Import "CodeRange.bmx"
 
 
 
-Global EOFToken:TLexerToken = New TLexerToken(Null, TTokenKind.Eof, Null)
-
 Type TLexerToken Final
 	Field ReadOnly value:String
 	Field ReadOnly kind:TTokenKind

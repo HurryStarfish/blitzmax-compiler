@@ -24,6 +24,7 @@ Type TLexer Implements ILexer Final
 	Field ReadOnly filePath:String
 	Field ReadOnly tokens:TList'<TLexerToken>
 	Field currentTokenLink:TLink'<TLexerToken>
+	Field ReadOnly eofToken:TLexerToken ' not included in list
 	
 	Private
 	Method New() End Method
@@ -33,15 +34,23 @@ Type TLexer Implements ILexer Final
 		Self.filePath = filePath
 		Self.tokens = ScanFile()
 		Self.currentTokenLink = tokens.FirstLink()
+		Self.eofToken = New TLexerToken(Null, TTokenKind.Eof, EOFTokenCodeLocation())
 	End Method
-
+	
+	Private
+	Method EOFTokenCodeLocation:SCodeLocation() ' TODO: make local function in constructor once that isn't broken in the compiler
+		Local lastToken:TLexerToken = TLexerToken(tokens.Last())
+		If lastToken Then Return lastToken.CodeRange().endLocation Else Return New SCodeLocation(filePath, 1, 1)
+	End Method
+	
+	Public
 	Method NextToken:TLexerToken() Override
 		If currentTokenLink Then
 			Local token:TLexerToken = TLexerToken(currentTokenLink.Value())
 			currentTokenLink = currentTokenLink.NextLink()
 			Return token
 		Else
-			Return EOFToken
+			Return eofToken
 		End If
 	End Method
 	

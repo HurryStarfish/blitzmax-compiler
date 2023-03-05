@@ -4,8 +4,12 @@ Import "ILexer.bmx"
 
 
 Type TNullLexer Implements ILexer Final
+	Private
+	Global eofToken:TLexerToken = New TLexerToken(Null, TTokenKind.Eof, Null)
+	
+	Public
 	Method NextToken:TLexerToken() Override
-		Return EOFToken
+		Return eofToken
 	End Method
 	
 	Method GetPosition:ILexerPosition() Override

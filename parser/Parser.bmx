@@ -849,9 +849,9 @@ Type TParser Implements IParser Final
 		Local typeParameters:TTypeParameterListSyntax = ParseTypeParameterList()
 		
 		Local extendsKeyword:TSyntaxToken
+		Local implementsKeyword:TSyntaxToken
 		Local superClass:TTypeSyntax
 		Local superInterfaces:TTypeListSyntax
-		Local implementsKeyword:TSyntaxToken
 		
 		Local expectMemberImplementations:Int
 		Select kind
@@ -867,12 +867,15 @@ Type TParser Implements IParser Final
 				implementsKeyword = TryTakeToken(TTokenKind.Implements_)
 				If implementsKeyword Then
 					superInterfaces = ParseSuperTypeList()
+					If Not superInterfaces.elements Then
+						ReportError "Expected type"
+					End If
 				End If
 			Case ETypeKind.Struct_
 				expectMemberImplementations = True
 				If currentToken.Kind() = TTokenKind.Extends_ Or currentToken.Kind() = TTokenKind.Implements_ Then
 					ReportError "Structs cannot extend or implement other types"
-					' TODO
+					' TODO: how to not lose tokens if parsed here?
 				End If
 			Case ETypeKind.Interface_
 				expectMemberImplementations = False
@@ -907,8 +910,8 @@ Type TParser Implements IParser Final
 		
 		Select kind
 			Case ETypeKind.Class Return New TClassDeclarationSyntax(initiatorKeyword, name, typeParameters, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
-			Case ETypeKind.Struct_ Throw "TODO"
-			Case ETypeKind.Interface_ Throw "TODO"
+			Case ETypeKind.Struct_ Return New TStructDeclarationSyntax(initiatorKeyword, name, typeParameters, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Interface_ Return New TInterfaceDeclarationSyntax(initiatorKeyword, name, typeParameters, extendsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
 			Default RuntimeError "Missing case"
 		End Select
 	End Method
@@ -935,7 +938,7 @@ Type TParser Implements IParser Final
 			name = GenerateMissingName()
 		End If
 		
-		Local baseType:TTypeSyntax = ParseSuperType()
+		Local baseType:TTypeSyntax = ParseEnumBaseType()
 		
 		Local flagsKeyword:TContextualKeywordSyntax = ParseContextualKeyword("Flags")
 		
@@ -2492,6 +2495,10 @@ Type TParser Implements IParser Final
 	
 	Method ParseSuperTypeList:TTypeListSyntax()
 		Return ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
+	End Method
+	
+	Method ParseEnumBaseType:TTypeSyntax()
+		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
 	Method ParseVariableDeclaratorType:TTypeSyntax(arrayDimensionsOption:EArrayDimensionsOption)

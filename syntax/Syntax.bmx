@@ -385,7 +385,7 @@ Type TClassDeclarationSyntax Extends TTypeDeclarationSyntax Final
 	Field ReadOnly metaData:TMetaDataSyntax {nullable}
 	Field ReadOnly body:TCodeBlockSyntax ' TODO: this type seems a bit unfitting - only declarations and visibility directives are allowed here; see enums
 	Field ReadOnly terminatorKeyword:TSyntaxToken {minor} ' TODO: move stuff to TTypeDeclarationSyntax?
-
+	
 	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, typeParameters:TTypeParameterListSyntax, extendsKeyword:TSyntaxToken, superClass:TTypeSyntax, implementsKeyword:TSyntaxToken, superInterfaces:TTypeListSyntax, modifiers:TTypeModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
 		Self.initiatorKeyword = initiatorKeyword
 		Self.name = name
@@ -420,6 +420,82 @@ End Type
 
 
 
+Type TStructDeclarationSyntax Extends TTypeDeclarationSyntax Final
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
+	Field ReadOnly name:TNameSyntax
+	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
+	Field ReadOnly modifiers:TTypeModifierSyntax[]
+	Field ReadOnly metaData:TMetaDataSyntax {nullable}
+	Field ReadOnly body:TCodeBlockSyntax ' TODO: this type seems a bit unfitting - only declarations and visibility directives are allowed here; see enums
+	Field ReadOnly terminatorKeyword:TSyntaxToken {minor} ' TODO: move stuff to TTypeDeclarationSyntax?
+	
+	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, typeParameters:TTypeParameterListSyntax, modifiers:TTypeModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
+		Self.initiatorKeyword = initiatorKeyword
+		Self.name = name
+		Self.typeParameters = typeParameters
+		Self.modifiers = modifiers
+		Self.metaData = metaData
+		Self.body = body
+		Self.terminatorKeyword = terminatorKeyword
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			initiatorKeyword, ..
+			name, ..
+			typeParameters, ..
+			modifiers, ..
+			metaData, ..
+			body, ..
+			terminatorKeyword ..
+		)
+	End Method
+End Type
+
+
+
+Type TInterfaceDeclarationSyntax Extends TTypeDeclarationSyntax Final
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
+	Field ReadOnly name:TNameSyntax
+	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
+	Field ReadOnly extendsKeyword:TSyntaxToken {nullable minor}
+	Field ReadOnly superInterfaces:TTypeListSyntax {nullable}
+	Field ReadOnly modifiers:TTypeModifierSyntax[]
+	Field ReadOnly metaData:TMetaDataSyntax {nullable}
+	Field ReadOnly body:TCodeBlockSyntax ' TODO: this type seems a bit unfitting - only declarations and visibility directives are allowed here; see enums
+	Field ReadOnly terminatorKeyword:TSyntaxToken {minor} ' TODO: move stuff to TTypeDeclarationSyntax?
+	
+	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, typeParameters:TTypeParameterListSyntax, extendsKeyword:TSyntaxToken, superInterfaces:TTypeListSyntax, modifiers:TTypeModifierSyntax[], metaData:TMetaDataSyntax, body:TCodeBlockSyntax, terminatorKeyword:TSyntaxToken)
+		Self.initiatorKeyword = initiatorKeyword
+		Self.name = name
+		Self.typeParameters = typeParameters
+		Self.extendsKeyword = extendsKeyword
+		Self.superInterfaces = superInterfaces
+		Self.modifiers = modifiers
+		Self.metaData = metaData
+		Self.body = body
+		Self.terminatorKeyword = terminatorKeyword
+		Verify Self
+	End Method
+	
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		Return ChildrenToArray( ..
+			initiatorKeyword, ..
+			name, ..
+			typeParameters, ..
+			extendsKeyword, ..
+			superInterfaces, ..
+			modifiers, ..
+			metaData, ..
+			body, ..
+			terminatorKeyword ..
+		)
+	End Method
+End Type
+
+
+
 Type TEnumDeclarationSyntax Extends TTypeDeclarationSyntax Final
 	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TNameSyntax
@@ -428,7 +504,7 @@ Type TEnumDeclarationSyntax Extends TTypeDeclarationSyntax Final
 	Field ReadOnly metaData:TMetaDataSyntax {nullable}
 	Field ReadOnly members:IEnumMemberSyntax[]
 	Field ReadOnly terminatorKeyword:TSyntaxToken {minor}
-
+	
 	Method New(initiatorKeyword:TSyntaxToken, name:TNameSyntax, baseType:TTypeSyntax, flagsKeyword:TContextualKeywordSyntax, metaData:TMetaDataSyntax, members:IEnumMemberSyntax[], terminatorKeyword:TSyntaxToken)
 		Self.initiatorKeyword = initiatorKeyword
 		Self.name = name
@@ -463,7 +539,7 @@ End Interface
 Type TEnumMemberDeclarationSyntax Extends TSyntax Implements IEnumMemberSyntax, IDeclarationSyntax Final
 	Field ReadOnly name:TNameSyntax
 	Field ReadOnly assignment:TAssignmentSyntax {nullable}
-
+	
 	Method New(name:TNameSyntax, assignment:TAssignmentSyntax)
 		Self.name = name
 		Self.assignment = assignment

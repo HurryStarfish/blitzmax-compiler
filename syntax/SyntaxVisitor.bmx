@@ -18,7 +18,6 @@ Public
 
 Type TSyntaxVisitor Abstract
 	' implement VisitTopDown(node:...) and/or VisitBottomUp(node:...) methods in derived types
-	' TODO: encode top-down/bottom-up in name
 	' TODO: allow visit methods to return values which will be passed to other visit methods
 	'       as a parameter (from parent, if top-down) or a map parameter (from children, if bottom-up)
 End Type
@@ -48,7 +47,9 @@ Function VisitSyntax(visitor:TSyntaxVisitor, root:ISyntax)
 
 	' find all valid visit methods
 	Local visitorType:TTypeId = TTypeId.ForObject(visitor)
-	Local visitMethods:TVisitMethodAndDirection[]' = visitorType.FindMethod("Visit")
+	Local visitMethods:TVisitMethodAndDirection[]
+	' TODO: BROKEN! this may randomly skip some of the methods because reflection is broken; this
+	' seems to be random(!) per build (different results when the same code is compiled multiple times)
 	For Local m:TMethod = EachIn visitorType._methodsList
 		If m.Name() = "VisitTopDown" Or m.Name() = "VisitBottomUp" Then
 			Local direction:Int

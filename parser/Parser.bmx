@@ -1562,7 +1562,7 @@ Type TParser Implements IParser Final
 				terminator = New TRepeatForeverTerminatorSyntax(terminatorKeyword)
 			Default RuntimeError "Missing case"
 		End Select
-				
+		
 		Return New TRepeatStatementSyntax(initiatorKeyword, body, terminator)
 	End Method
 	
@@ -1745,7 +1745,7 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method ParseAssignmentStatement:TAssignmentStatementSyntax() ' backtracks
-		' this method parses code accepts whose first part would also be accepted by ParseParenlessCallStatement,
+		' this method parses code constructs whose first part would also be accepted by ParseParenlessCallStatement,
 		' so in any context where both are valid, this method must be called first
 		Local state:SParserState = SaveState()
 		
@@ -2230,7 +2230,7 @@ Type TParser Implements IParser Final
 				' this rejects all tokens that can be the start of an expression appearing on the rhs of
 				' a relational expression but not appear directly after a type argument list in valid code
 				Select self_.currentToken.Kind()
-					' prefix operators, excluding those that double as binary operators
+					' prefix operators, excluding the ones that double as binary operators
 					Case TTokenKind.Not_, TTokenKind.Asc_, TTokenKind.Chr_, TTokenKind.Len_, TTokenKind.SizeOf_, TTokenKind.Varptr_
 						Return False
 					' open bracket of array literal or indexing (cannot be a type suffix in this context)
@@ -2889,7 +2889,7 @@ Type TParser Implements IParser Final
 				If Not op Then op = ParseOperator([TTokenKind.ColonShl])
 				If Not op Then op = ParseOperator([TTokenKind.ColonShr])
 				If Not op Then op = ParseOperator([TTokenKind.ColonSar])
-		Default RuntimeError "Missing case"
+			Default RuntimeError "Missing case"
 		End Select
 		If Not op Then Return Null
 		
@@ -2920,7 +2920,7 @@ Type TParser Implements IParser Final
 		Return New TExternSignatureAssignmentSyntax(op, externSignature)
 	End Method
 	
-	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolons or non-escaped line break)
+	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolon or non-escaped line break)
 		Local token:TSyntaxToken = TryTakeToken(StatementSeparatorTokenKinds)
 		If Not token Then Return Null
 		

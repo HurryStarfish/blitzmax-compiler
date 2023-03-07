@@ -289,7 +289,7 @@ End Interface
 
 
 Type TExternBlockSyntax Extends TSyntax Implements ICodeBlockElementSyntax Final
-	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly callingConvention:TSyntaxToken {nullable}
 	Field ReadOnly elements:IExternBlockElementSyntax[]
 	Field ReadOnly terminatorKeyword:TSyntaxToken {minor}
@@ -335,7 +335,7 @@ End Type
 
 
 Type TExternFunctionDeclarationSyntax Extends TExternDeclarationSyntax Final
-	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TCallableDeclarationNameSyntax
 	Field ReadOnly type_:TTypeSyntax
 	Field ReadOnly externSignatureAssignment:TExternSignatureAssignmentSyntax
@@ -374,7 +374,7 @@ End Type
 
 
 Type TClassDeclarationSyntax Extends TTypeDeclarationSyntax Final
-	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TNameSyntax
 	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
 	Field ReadOnly extendsKeyword:TSyntaxToken {nullable minor}
@@ -421,7 +421,7 @@ End Type
 
 
 Type TEnumDeclarationSyntax Extends TTypeDeclarationSyntax Final
-	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TNameSyntax
 	Field ReadOnly baseType:TTypeSyntax {nullable}
 	Field ReadOnly flagsKeyword:TContextualKeywordSyntax {nullable}

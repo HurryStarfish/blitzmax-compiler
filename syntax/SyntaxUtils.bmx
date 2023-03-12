@@ -2,8 +2,8 @@ SuperStrict
 Import BRL.Reflection
 Import "ReflectionUtils.bmx"
 Import BRL.StringBuilder
+Import "ISyntax.bmx"
 Import "SyntaxToken.bmx"
-Import "SyntaxVisitor.bmx" ' TODO: untangle this, visitors should be in their own files (and folder?)
 
 
 

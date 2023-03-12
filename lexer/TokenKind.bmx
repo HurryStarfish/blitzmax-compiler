@@ -5,7 +5,7 @@ SuperStrict
 Type TTokenKind Final ' TODO: turn into struct once reflection is less broken
 	
 	Field ReadOnly name:String
-	Field ReadOnly canonicalValue:String {nullable} ' null if there is no reasonablecanonical value, e.g. for identifiers
+	Field ReadOnly canonicalValue:String {nullable} ' null if there is no reasonable canonical value, e.g. for identifiers
 	
 	Private
 	Method New(name:String)

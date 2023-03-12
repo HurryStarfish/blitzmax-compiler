@@ -13,6 +13,10 @@ Import BRL.Reflection
 Public
 
 Type TSyntax Implements ISyntax Abstract
+	Protected
+	Method New() End Method
+	
+	Public
 	Method CodeRange:SCodeRange() Override Final
 		Local children:ISyntaxOrSyntaxToken[] = GetChildren()
 		If children.length = 0 Then

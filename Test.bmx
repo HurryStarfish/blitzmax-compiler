@@ -6,6 +6,8 @@ Import BRL.SystemDefault
 Import BRL.StandardIO
 Import "lexer/Lexer.bmx"
 Import "parser/Parser.bmx"
+Import "syntax/SyntaxVisitor.bmx"
+Import "types/Types.bmx"
 
 Global testfiledir:String = CurrentDir() + "/samples/"
 Global testfilename:String = "test.bmx"
@@ -67,8 +69,13 @@ End Function
 
 Function TestParserTokens(doPrint:Int = True)
 	Local parser:TParser = New TParser(testfilepath, CreateLexer)
-	Repeat
-		Local token:TSyntaxToken = parser.currentToken
+	Local x:TSyntaxTree = New TSyntaxTree(parser.ParseCompilationUnit())
+	New TSyntaxTokenVisitor(doPrint).Visit x
+End Function
+Type TSyntaxTokenVisitor Extends TSyntaxVisitor
+	Field doPrint:Int
+	Method New(doPrint:Int) Self.doPrint = doPrint End Method
+	Method VisitTopDown(link:TSyntaxLink, token:TSyntaxToken)
 		If doPrint Then
 			'Print token.ToString()
 			Function TriviaToString:String(trivia:TLexerToken[])
@@ -88,22 +95,21 @@ Function TestParserTokens(doPrint:Int = True)
 			str :+ token.lexerToken.kind.ToString() + " " + Quote(token.lexerToken.value)
 			str :+ " >>> "
 			str :+ TriviaToString(token.trailingTrivia)
+			str :+ "   " + token.CodeRange().ToString()
 			Print str
 		End If
-		parser.AdvanceToNextSyntaxToken
-		If token.lexerToken.kind = TTokenKind.Eof Then Exit
-	Forever
-End Function
+	End Method
+End Type
 
 Function TestParser(doPrint:Int = True)
 	Local parser:IParser = New TParser(testfilepath, CreateLexer)
-	Local x:ISyntax = parser.ParseCompilationUnit()
+	Local x:TSyntaxTree = New TSyntaxTree(parser.ParseCompilationUnit())
 	If doPrint Then
 		For Local error:TParseError = EachIn parser.Errors()
 			Print "PARSE ERROR: " + error.ToString()
 			'Notify "PARSE ERROR: " + error.ToString()
 		Next
-		Print SyntaxToString(x)
+		Print SyntaxToString(x.GetRoot().GetSyntaxOrSyntaxToken())
 		
 		Print "-------------------------"
 		
@@ -111,7 +117,7 @@ Function TestParser(doPrint:Int = True)
 		''DebugStop
 		''VisitSyntax New TTestVisitor, x
 		'Print "~~~~~~~~~~~~"
-		VisitSyntax New TGenTestVisitor, x
+		New TGenTestVisitor.Visit x
 	End If
 End Function
 
@@ -125,7 +131,7 @@ End Function
 
 Type TGenTestVisitor Extends TSyntaxVisitor
 	Field str:String = ""
-	Method VisitTopDown(s:TSyntax) ' combined instead of separate visitors because of reflection bug
+	Method VisitTopDown(link:TSyntaxLink, s:TSyntax) ' combined instead of separate visitors because of reflection bug
 		If TStatementSeparatorSyntax(s) Then
 			If str And Not str.EndsWith("<-") Then
 				Print str
@@ -137,10 +143,10 @@ Type TGenTestVisitor Extends TSyntaxVisitor
 			str :+ sstr + "   <-"
 		End If
 	End Method
-	Method VisitTopDown(s:TRelationalExpressionSyntax)
+	Method VisitTopDown(link:TSyntaxLink, s:TRelationalExpressionSyntax)
 		str :+ " rel"
 	End Method
-	Method VisitTopDown(s:TTypeApplicationExpressionSyntax)
+	Method VisitTopDown(link:TSyntaxLink, s:TTypeApplicationExpressionSyntax)
 		str :+ " gen"
 	End Method
 End Type
@@ -159,7 +165,7 @@ Type TTestVisitor Extends TSyntaxVisitor
 		Print f.CodeRange().ToString()
 	End Method
 	End Rem
-	Method VisitTopDown(f:ISyntax)
+	Method VisitTopDown(link:TSyntaxLink, f:ISyntax)
 		Handle f
 	End Method
 	

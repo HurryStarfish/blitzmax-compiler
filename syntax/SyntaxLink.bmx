@@ -1,0 +1,63 @@
+SuperStrict
+Import "Syntax.bmx"
+Import "../util/WeakReference.bmx"
+
+
+
+Type TSyntaxLink Final
+	Private
+	Field ReadOnly parent:TSyntaxLink 'nullable
+	Field children:Object 'TSyntaxLink[] | TWeakReference'<TSyntaxLink[]>
+	Field ReadOnly syntaxOrSyntaxToken:ISyntaxOrSyntaxToken
+	Field ReadOnly codeRange:SCodeRange
+	
+	Private
+	Method New() End Method
+	
+	Public
+	Method New(parent:TSyntaxLink, syntaxOrSyntaxToken:ISyntaxOrSyntaxToken) ' parent null for root
+		Self.parent = parent
+		Self.syntaxOrSyntaxToken = syntaxOrSyntaxToken
+	End Method
+	
+	Method GetParent:TSyntaxLink() 'nullable
+		Return parent
+	End Method
+	
+	Method GetChildren:TSyntaxLink[]()
+		If TCodeBlockSyntax(syntaxOrSyntaxToken) Then
+			' links for code blocks are weakly referenced, so that the corresponding
+			' subtree can be reclaimed by GC when it is no longer referenced anywhere else
+			Local children:TSyntaxLink[]
+			If TWeakReference(Self.children) Then children = TSyntaxLink[](TWeakReference(Self.children).Get())
+			If Not children Then
+				children = CreateChildren(Self)
+				Self.children = New TWeakReference(children)
+			End If
+			Return children
+		Else
+			If Not Self.children And ISyntax(syntaxOrSyntaxToken) Then
+				Self.children = CreateChildren(Self)
+			End If
+			Return TSyntaxLink[](Self.children)
+		End If
+		
+		Function CreateChildren:TSyntaxLink[](self_:TSyntaxLink)
+			Local syntaxChildren:ISyntaxOrSyntaxToken[] = ISyntax(self_.syntaxOrSyntaxToken).GetChildren()
+			Local children:TSyntaxLink[syntaxChildren.length]
+			For Local c:Int = 0 Until children.length
+				children[c] = New TSyntaxLink(self_, syntaxChildren[c])
+			Next
+			Return children
+		End Function
+	End Method
+	
+	Method GetSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken()
+		Return syntaxOrSyntaxToken
+	End Method
+	
+	Method GetCodeRange:SCodeRange()
+		Return syntaxOrSyntaxToken.CodeRange()
+	End Method
+
+End Type

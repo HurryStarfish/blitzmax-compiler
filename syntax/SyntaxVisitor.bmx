@@ -1,14 +1,16 @@
 SuperStrict
 Import "ISyntax.bmx"
+Import "SyntaxLink.bmx"
 Import BRL.Reflection
 Import "ReflectionUtils.bmx"
 
 
 
 Private
-Global iSyntaxType:TTypeId = TTypeId.ForName("ISyntax")
-Assert iSyntaxType Else "ISyntax type not found"
-
+Global ISyntaxType:TTypeId = TTypeId.ForName("ISyntax")
+Assert ISyntaxType Else "ISyntax type not found"
+Global TSyntaxTokenType:TTypeId = TTypeId.ForName("TSyntaxToken")
+Assert ISyntaxType Else "ISyntaxToken type not found"
 
 
 Public
@@ -44,7 +46,7 @@ Function VisitSyntax(visitor:TSyntaxVisitor, root:ISyntax)
 			Self.direction = direction
 		End Method
 	End Type
-
+	
 	' find all valid visit methods
 	Local visitorType:TTypeId = TTypeId.ForObject(visitor)
 	Local visitMethods:TVisitMethodAndDirection[]
@@ -59,17 +61,27 @@ Function VisitSyntax(visitor:TSyntaxVisitor, root:ISyntax)
 			End Select
 			Local returnType:TTypeId = m.TypeId().ReturnType()
 			Local argTypes:TTypeId[] = m.ArgTypes()
-			Assert returnType = VoidTypeId Else "Invalid return type on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes.length = 1 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes[0] = iSyntaxType Or Not argTypes[0].IsInterface() Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name() + " (can't use interfaces other than ISyntax due to reflection being broken)"
-			Assert argTypes[0].ExtendsType(iSyntaxType) Or argTypes[0].Interfaces().Contains(iSyntaxType) Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name()
+			Assert argTypes[0] = ISyntaxType Or Not argTypes[0].IsInterface() Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name() + " (can't use interfaces other than ISyntax due to reflection being broken)"
+			Assert argTypes[0].ExtendsType(ISyntaxType) Or argTypes[0].Interfaces().Contains(ISyntaxType) Or ..
+			       argTypes[0].ExtendsType(TSyntaxTokenType) Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name()
+			If returnType = VoidTypeId Then
+				Assert argTypes.length = 1 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
+			Else
+				Assert returnType.ExtendsType(ObjectTypeId) Else "Invalid return type on " + visitorType.Name() + "." + m.Name() + " (must extend Object)"
+				Assert argTypes.length = 2 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
+				Select direction
+					Case TopDown Assert argTypes[1] = returnType Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name() + " (second parameter must match return type)"
+					Case BottomUp Assert argTypes[1] = TTypeId.ForObject(New TMap) Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name() + " (second parameter must be TMap)"
+					Default RuntimeError "Missing case"
+				End Select
+			End If
 			visitMethods :+ [New TVisitMethodAndDirection(m, direction)]
 		End If
 	Next
 	Assert visitMethods Else "No VisitTopDown or VisitBottomUp method found in " + visitorType.Name()
 	VisitSyntaxInner visitor, visitMethods, root
 	
-	Function VisitSyntaxInner(visitor:TSyntaxVisitor, visitMethods:TVisitMethodAndDirection[], node:ISyntax)
+	Function VisitSyntaxInner(visitor:TSyntaxVisitor, visitMethods:TVisitMethodAndDirection[], nodeOrToken:ISyntaxOrSyntaxToken)
 		Type TVisitMethodAndDirectionAndVisitor ' TODO: struct
 			Field ReadOnly visitMethod:TMethod
 			Field ReadOnly direction:Int ' TODO: enum
@@ -82,48 +94,59 @@ Function VisitSyntax(visitor:TSyntaxVisitor, root:ISyntax)
 		End Type
 		
 		' select visit methods applicable to this node
-		Local nodeType:TTypeId = TTypeId.ForObject(node)
+		Local nodeOrTokenType:TTypeId = TTypeId.ForObject(nodeOrToken)
 		Local applicableMethods:TVisitMethodAndDirectionAndVisitor[]
 		For Local v:TVisitMethodAndDirection = EachIn visitMethods
 			Local visitMethod:TMethod = v.visitMethod
 			Local direction:Int = v.direction
 			Local argType:TTypeId = visitMethod.ArgTypes()[0]
-			If nodeType.ExtendsType(argType) Or nodeType.Interfaces().Contains(argType) Then ' this is so broken
+			If nodeOrTokenType.ExtendsType(argType) Or nodeOrTokenType.Interfaces().Contains(argType) Then ' this is so broken
 				applicableMethods :+ [New TVisitMethodAndDirectionAndVisitor(visitMethod, direction, visitor)]
 			End If
 		Next
 		
 		' visit nodes
 		For Local m:TVisitMethodAndDirectionAndVisitor = EachIn applicableMethods
-			If m.direction = TopDown Then Visit m.visitMethod, m.visitor, node
-		Next
-		
-		For Local nodeField:TField = EachIn GetAllFields(nodeType)
-			Local nodeFieldType:TTypeId = nodeField.TypeId()
-			Local nodeFieldValue:Object = nodeField.Get(node)
-			
-			If ISyntax(nodeFieldValue) Then
-				VisitSyntaxInner visitor, visitMethods, ISyntax(nodeFieldValue)
-			Else If nodeFieldValue And ..
-			        nodeFieldType.ExtendsType(ArrayTypeId)..' And ..
-			        .. '(nodeFieldType.ElementType().ExtendsType(iSyntaxType) Or nodeFieldType.ElementType().Interfaces().Contains(iSyntaxType)) .. ' reflection is too broken for this, we will make do with a null check instead
-			Then
-				For Local i:Int = 0 Until nodeFieldType.ArrayLength(nodeFieldValue)
-					Local nodeFieldArrayElement:ISyntax = ISyntax(nodeFieldType.GetArrayElement(nodeFieldValue, i))
-					If Not nodeFieldArrayElement Then Continue ' this is that null check
-					VisitSyntaxInner visitor, visitMethods, nodeFieldArrayElement
-				Next
+			If m.direction = TopDown Then
+				Visit m.visitMethod, m.visitor, nodeOrToken
 			End If
 		Next
 		
+		If ISyntax(nodeOrToken) Then
+			For Local nodeField:TField = EachIn GetAllFields(nodeOrTokenType)
+				Local nodeFieldType:TTypeId = nodeField.TypeId()
+				Local nodeFieldValue:Object = nodeField.Get(nodeOrToken)
+				
+				If ISyntaxOrSyntaxToken(nodeFieldValue) Then
+					VisitSyntaxInner visitor, visitMethods, ISyntaxOrSyntaxToken(nodeFieldValue)
+				Else If nodeFieldValue And ..
+						nodeFieldType.ExtendsType(ArrayTypeId)..' And ..
+						.. '(nodeFieldType.ElementType().ExtendsType(ISyntaxOrSyntaxTokenType) Or nodeFieldType.ElementType().Interfaces().Contains(ISyntaxOrSyntaxTokenType)) .. ' reflection is too broken for this, we will make do with a null check instead
+				Then
+					For Local i:Int = 0 Until nodeFieldType.ArrayLength(nodeFieldValue)
+						Local nodeFieldArrayElement:ISyntaxOrSyntaxToken = ISyntaxOrSyntaxToken(nodeFieldType.GetArrayElement(nodeFieldValue, i))
+						If Not nodeFieldArrayElement Then Continue ' this is that null check
+						VisitSyntaxInner visitor, visitMethods, nodeFieldArrayElement
+					Next
+				End If
+			Next
+		End If
+		
 		For Local m:TVisitMethodAndDirectionAndVisitor = EachIn applicableMethods
-			If m.direction = BottomUp Then Visit m.visitMethod, m.visitor, node
+			If m.direction = BottomUp Then
+				Visit m.visitMethod, m.visitor, nodeOrToken
+			End If
 		Next
 				
-		Function Visit(visitMethod:TMethod, visitor:TSyntaxVisitor, node:ISyntax)
+		Function Visit(visitMethod:TMethod, visitor:TSyntaxVisitor, nodeOrToken:ISyntaxOrSyntaxToken)
 			'visitMethod.Invoke visitor, [node] ' .Invoke is broken
 			Local fptr(v:Object, s:Object) = visitMethod._ref
-			fptr visitor, node
+			fptr visitor, nodeOrToken
+		End Function
+		Function Visit:Object(visitMethod:TMethod, visitor:TSyntaxVisitor, nodeOrToken:ISyntaxOrSyntaxToken, parentReturnValue:Object)
+			'Return visitMethod.Invoke(visitor, [node, parentReturnValue]) ' .Invoke is broken
+			Local fptr:Object(v:Object, s:Object, p:Object) = visitMethod._ref
+			Return fptr(visitor, nodeOrToken, parentReturnValue)
 		End Function
 	End Function
 End Function

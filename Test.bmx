@@ -7,10 +7,10 @@ Import BRL.StandardIO
 Import "lexer/Lexer.bmx"
 Import "parser/Parser.bmx"
 Import "syntax/SyntaxVisitor.bmx"
-Import "types/Types.bmx"
+Import "symbols/Visitors.bmx"
 
 Global testfiledir:String = CurrentDir() + "/samples/"
-Global testfilename:String = "test.bmx"
+Global testfilename:String = "declarations.bmx"
 Global testfilepath:String = testfiledir + testfilename
 StandardIOStream = New TMultiStreamWrapper([StandardIOStream, WriteFile(testfiledir + "output.txt")])
 
@@ -52,7 +52,8 @@ Local ms1:Int = MilliSecs()
 
 'TestLexer 'False
 'TestParserTokens 'False
-TestParser 'False
+'TestParser 'False
+TestSymbols
 
 Local ms2:Int = MilliSecs()
 Print "time: " + (ms2 - ms1) + "ms"
@@ -118,6 +119,21 @@ Function TestParser(doPrint:Int = True)
 		''VisitSyntax New TTestVisitor, x
 		'Print "~~~~~~~~~~~~"
 		New TGenTestVisitor.Visit x
+	End If
+End Function
+
+Function TestSymbols(doPrint:Int = True)
+	Local parser:IParser = New TParser(testfilepath, CreateLexer)
+	Local x:TSyntaxTree = New TSyntaxTree(parser.ParseCompilationUnit())
+	If doPrint Then
+		For Local error:TParseError = EachIn parser.Errors()
+			Print "PARSE ERROR: " + error.ToString()
+			'Notify "PARSE ERROR: " + error.ToString()
+		Next
+		
+		Local v:TCreateScopesAndInsertNamedDeclarationsVisitor = New TCreateScopesAndInsertNamedDeclarationsVisitor
+		v.Visit x
+		Print SyntaxToString(x.GetRoot().GetSyntaxOrSyntaxToken(), False, v.scopes)
 	End If
 End Function
 

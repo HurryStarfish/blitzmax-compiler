@@ -1,12 +1,12 @@
-SuperStrict
-Import "Syntax.bmx"
-Import "../util/WeakReference.bmx"
+'SuperStrict
+'Import "Syntax.bmx"
+'Import "../util/WeakReference.bmx"
 
 
 
 Type TSyntaxLink Final
 	Private
-	Field ReadOnly parent:TSyntaxLink 'nullable
+	Field ReadOnly parent:Object 'TSyntaxLink | TSyntaxTree
 	Field children:Object 'TSyntaxLink[] | TWeakReference'<TSyntaxLink[]>
 	Field ReadOnly syntaxOrSyntaxToken:ISyntaxOrSyntaxToken
 	Field ReadOnly codeRange:SCodeRange
@@ -14,14 +14,29 @@ Type TSyntaxLink Final
 	Private
 	Method New() End Method
 	
+	Method New(syntaxTree:TSyntaxTree, syntaxOrSyntaxToken:ISyntaxOrSyntaxToken) ' for the root node only
+		Self.parent = syntaxTree
+		Self.syntaxOrSyntaxToken = syntaxOrSyntaxToken
+	End Method
+	
 	Public
-	Method New(parent:TSyntaxLink, syntaxOrSyntaxToken:ISyntaxOrSyntaxToken) ' parent null for root
+	Method New(parent:TSyntaxLink, syntaxOrSyntaxToken:ISyntaxOrSyntaxToken)
 		Self.parent = parent
 		Self.syntaxOrSyntaxToken = syntaxOrSyntaxToken
 	End Method
 	
+	Function CreateRoot:TSyntaxLink(syntaxTree:TSyntaxTree, syntaxOrSyntaxToken:ISyntaxOrSyntaxToken)
+		Return New TSyntaxLink(syntaxTree, syntaxOrSyntaxToken)
+	End Function
+	
+	Method GetSyntaxTree:TSyntaxTree()
+		Local link:TSyntaxLink = Self
+		While TSyntaxLink(link.parent) link = TSyntaxLink(link.parent) Wend
+		Return TSyntaxTree(link.parent)
+	End Method
+	
 	Method GetParent:TSyntaxLink() 'nullable
-		Return parent
+		Return TSyntaxLink(parent)
 	End Method
 	
 	Method GetChildren:TSyntaxLink[]()
@@ -50,6 +65,13 @@ Type TSyntaxLink Final
 			Next
 			Return children
 		End Function
+	End Method
+	
+	Method FindChild:TSyntaxLink(childSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken) ' must be a direct child
+		For Local child:TSyntaxLink = EachIn GetChildren()
+			If child.syntaxOrSyntaxToken = childSyntaxOrSyntaxToken Then Return child
+		Next
+		RuntimeError "Child link not found"
 	End Method
 	
 	Method GetSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken()

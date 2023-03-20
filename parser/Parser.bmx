@@ -381,11 +381,13 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method SkipAndTakeToken:TSyntaxToken(kind:TTokenKind, additionalTerminatorKinds:TTokenKind[])
-		Throw "TODO: sometimes drops tokens; fix" ' e.g. when skipping to the ">" in "a<b & c>(d)"
-		' takes a token of the specified kind, either skipping all tokens before its next occurrence (if it is before any of the surrounding or specified terminator kinds), or generating a missing token and reporting an error
+		' takes a token of the specified kind, either by skipping all tokens up to its next occurrence
+		' (if one is found before any of the specified or surrounding terminator kinds), or,
+		' if that fails, by generating a missing token and reporting an error
 		Local token:TSyntaxToken = TryTakeToken(kind)
 		
 		If Not token Then
+			Throw "TODO: sometimes drops tokens; fix" ' e.g. when skipping to the ">" in "a<b & c>(d)"
 			terminatorStack.Push additionalTerminatorKinds
 			Local skippedTokens:TSyntaxToken[]
 			Local mustRestoreState:Int = False
@@ -395,16 +397,17 @@ Type TParser Implements IParser Final
 				Repeat
 					skippedTokens :+ [TakeToken()]
 					If currentToken.Kind() = kind Then
+						token = TakeToken(kind)
 						Exit
 					Else If terminatorStack.Contains(currentToken.Kind()) Then
 						mustRestoreState = True
 						Exit
-					Else If skippedTokens.length > 30 Then
+					Else If skippedTokens.length > 30 Then ' TODO
 						mustRestoreState = True
 						Exit
 					End If
 					' TODO: use additional terminators; in expression contexts this can be any token
-					'       kinda that can not appear in any expression (keywords for declarations,
+					'       kind that can not appear in any expression (keywords for declarations,
 					'       statements, ...), in other contexts it should not include any token
 					'       kinds that could appear in the current construct
 				Forever

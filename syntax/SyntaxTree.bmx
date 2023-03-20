@@ -1,5 +1,7 @@
 SuperStrict
-Import "SyntaxLink.bmx"
+Import "Syntax.bmx"
+Import "../util/WeakReference.bmx"
+Include "SyntaxLink.bmx"
 
 
 
@@ -22,7 +24,7 @@ Type TSyntaxTree Final
 
 	Public
 	Method New(syntax:ISyntax)
-		root = New TSyntaxLink(Null, syntax)
+		root = TSyntaxLink.CreateRoot(Self, syntax)
 	End Method
 	
 	Method GetRoot:TSyntaxLink()

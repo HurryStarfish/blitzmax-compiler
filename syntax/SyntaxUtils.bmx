@@ -2,55 +2,25 @@ SuperStrict
 Import BRL.Reflection
 Import "ReflectionUtils.bmx"
 Import BRL.StringBuilder
-Import "ISyntax.bmx"
-Import "SyntaxToken.bmx"
+Import "SyntaxTree.bmx"
 
 
 
 Private
-
 Const Indent:String = "  "
-Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
-Assert iSyntaxTypeId Else "ISyntax type not found"
-Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
-Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
-
-? Debug
-For Local t:TTypeId = EachIn TTypeId.EnumTypes()
-	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
-		' verify presence of TSyntaxToken field
-		Local hasSyntaxTokenField:Int = False
-		For Local f:TField = EachIn GetAllFields(t)
-			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True
-			' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
-		Next
-		If Not hasSyntaxTokenField Then RuntimeError "Type " + t.Name() + " implements ISyntax and must have a TSyntaxToken field"
-		' verify correct use of {nullable}
-		For Local f:TField = EachIn GetAllFields(t)
-			If f.MetaData("nullable") Then
-				If Not f.TypeId().ExtendsType(ObjectTypeId) Then RuntimeError "Cannot use {nullable} on non-object fields (" + t.Name() + "." + f.Name() + ")"
-				If f.TypeId().ExtendsType(StringTypeId) Then RuntimeError "Cannot use {nullable} on String fields (" + t.Name() + "." + f.Name() + ")"
-				If f.TypeId().ExtendsType(ArrayTypeId) Then RuntimeError "Cannot use {nullable} on array fields (" + t.Name() + "." + f.Name() + ")"
-			End If
-		Next
-	End If
-Next
-?
-
-
 
 Public
-
-Function SyntaxToString:String(syntaxOrToken:ISyntaxOrSyntaxToken, showMinorFields:Int = True, additionalData:TMap = Null)'<ISyntax, Object>
+Function SyntaxToString:String(link:TSyntaxLink, syntaxOrToken:ISyntaxOrSyntaxToken, showMinorFields:Int = True, additionalData:TMap = Null)'<ISyntax|TSyntaxLink, Object>
+	Assert link.GetSyntaxOrSyntaxToken() = syntaxOrToken Else "Link does not match syntax or syntax token"
 	Local sb:TStringBuilder = New TStringBuilder
-	SyntaxToString sb, syntaxOrToken, showMinorFields, additionalData
+	SyntaxToString sb, link, syntaxOrToken, showMinorFields, additionalData
 	Return sb.ToString()
 End Function
 
-Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, showMinorFields:Int = True, additionalData:TMap = Null)
-	ToString sb, syntaxOrToken, showMinorFields, "", False, additionalData
+Function SyntaxToString(sb:TStringBuilder, link:TSyntaxLink, syntaxOrToken:ISyntaxOrSyntaxToken, showMinorFields:Int = True, additionalData:TMap = Null)
+	ToString sb, link, syntaxOrToken, showMinorFields, "", False, additionalData
 	
-	Function ToString(sb:TStringBuilder, o:Object, showMinorFields:Int, indent:String, newline:Int, additionalData:TMap)
+	Function ToString(sb:TStringBuilder, link:TSyntaxLink, o:Object, showMinorFields:Int, indent:String, newline:Int, additionalData:TMap)
 		Local t:TTypeId = TTypeId.ForObject(o)
 		If Not o Then
 			Return
@@ -60,7 +30,7 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, s
 			sb.Append indent
 			sb.Append t.Name()
 			If additionalData Then
-				Local d:Object = additionalData.ValueForKey(o)
+				Local d:Object = additionalData.ValueForKey(link)
 				If d Then sb.Append " --- "; sb.Append d.ToString()
 			End If
 			For Local f:TField = EachIn GetAllFields(t)
@@ -71,12 +41,19 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, s
 				sb.Append f.Name()
 				sb.Append ":"
 				Local fValue:Object = f.Get(syntax)
-				ToString sb, fValue, showMinorFields, indent + .Indent + .Indent, True, additionalData
+				If fValue And TTypeId.ForObject(fValue).ExtendsType(ArrayTypeId) Then ' TODO
+					ToString sb, link, fValue, showMinorFields, indent + .Indent + .Indent, True, additionalData
+				Else If fValue Then
+					Assert ISyntaxOrSyntaxToken(fValue) Else "Object is not syntax or syntax token"
+					ToString sb, link.FindChild(ISyntaxOrSyntaxToken(fValue)), fValue, showMinorFields, indent + .Indent + .Indent, True, additionalData
+				End If
 			Next
 		Else If t.ExtendsType(ArrayTypeId) Then
 			If t.Name() = "Null[]" Then Return
 			For Local i:Int = 0 Until t.ArrayLength(o)
-				ToString sb, t.GetArrayElement(o, i), showMinorFields, indent, True, additionalData
+				Local element:Object = t.GetArrayElement(o, i)
+				Assert ISyntaxOrSyntaxToken(element) Else "Object is not syntax or syntax token"
+				ToString sb, link.FindChild(ISyntaxOrSyntaxToken(element)), element, showMinorFields, indent, True, additionalData
 			Next
 		Else
 			If newline Then sb.Append "~n"

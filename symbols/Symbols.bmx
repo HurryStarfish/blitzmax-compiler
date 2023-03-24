@@ -1,4 +1,5 @@
 SuperStrict
+Import "../syntax/Syntax.bmx"
 
 Rem
 Local f:Int(a:Float, b:String)
@@ -79,164 +80,225 @@ End Type
 End Rem
 
 
+' TODO: distinguish between declaration and use
+Interface ISymbol
+	Method GetSyntax:ISyntax() ' returns nulls for imported symbols
+	'Method ToString:String() Override
+End Interface
 
-Type TSymbol Abstract
+
+Rem
+Type TSymbol Implements ISymbol Abstract
+	Private
+	Method New() End Method
+	
+	Protected
+	Method New(syntax:ISyntax)
+		Self.syntax = syntax
+	End Method
+End Type
+End Rem
+
+
+Interface IDeclaration Extends ISymbol
+	' TODO: visibility
+	Method GetName:String() ' does not need to be unique, can but should not be null
+	Method IsReferrableByName:Int() ' whether the name can be used in code (as an identifier) to refer to this declaration
+End Interface
+
+
+
+Type TVariableDeclaration Implements IDeclaration Abstract
+	Private
+	Field ReadOnly name:String
+	Field ReadOnly syntax:TVariableDeclaratorSyntax
+	
 	Protected
 	Method New() End Method
 	
 	Public
-	Method ToString:String() Override Abstract
-End Type
-
-
-
-Type TNamedSymbol Extends TSymbol Abstract ' TODO: symbol visibility
-	Field ReadOnly name:String 'todo: 'take syntax as parameter instead, name can be a method
-End Type
-
-
-
-Type TVariableSymbol Extends TNamedSymbol Abstract
-End Type
-
-
-
-Type TConstSymbol Extends TVariableSymbol Final
-	Method New(name:String)
+	Method New(syntax:TVariableDeclaratorSyntax)
+		Self.name = syntax.name.identifier.lexerToken.value 
+		Self.syntax = syntax
+	End Method
+	
+	Method New(name:String) ' for imported symbols
 		Self.name = name
+		Self.syntax = Null
 	End Method
 	
-	Method ToString:String() Override
-		Return "Const " + name
+	Method GetSyntax:TVariableDeclaratorSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetName:String() Override
+		Return name
+	End Method
+	
+	Method IsReferrableByName:Int() Override
+		Return True
 	End Method
 End Type
 
 
 
-Type TGlobalSymbol Extends TVariableSymbol Final
-	Method New(name:String)
+Type TConstDeclaration Extends TVariableDeclaration Final
+	Method ToString:String() Override
+		Return "Const " + GetName()
+	End Method
+End Type
+
+
+
+Type TGlobalDeclaration Extends TVariableDeclaration Final	
+	Method ToString:String() Override
+		Return "Global " + GetName()
+	End Method
+End Type
+
+
+
+Type TLocalDeclaration Extends TVariableDeclaration Final
+	Method ToString:String() Override
+		Return "Local " + GetName()
+	End Method
+End Type
+
+
+
+Type TFieldDeclaration Extends TVariableDeclaration Final
+	Method ToString:String() Override
+		Return "Field " + GetName()
+	End Method
+End Type
+
+
+
+Type TCallableDeclaration Implements IDeclaration Abstract
+	Private
+	Field ReadOnly name:String
+	Field ReadOnly syntax:TCallableDeclarationSyntax
+	
+	Protected
+	Method New() End Method
+	
+	Public
+	Method New(syntax:TCallableDeclarationSyntax)
+		If syntax.name.identifierName Then
+			Self.name = syntax.name.identifierName.identifier.lexerToken.value
+		Else If syntax.name.keywordName Then
+			Self.name = syntax.name.keywordName.lexerToken.value
+		Else If syntax.name.operatorName Then
+			For Local t:TSyntaxToken = EachIn syntax.name.operatorName.tokens
+				Self.name :+ t.lexerToken.value
+			Next
+		Else
+			RuntimeError "Missing case"
+		End If
+		Self.syntax = syntax
+	End Method
+	
+	Method New(name:String) ' for imported symbols
 		Self.name = name
+		Self.syntax = Null
 	End Method
 	
-	Method ToString:String() Override
-		Return "Global " + name
+	Method GetSyntax:TCallableDeclarationSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetName:String() Override
+		Return name
 	End Method
 End Type
 
 
 
-Type TLocalSymbol Extends TVariableSymbol Final
-	Method New(name:String)
-		Self.name = name
+Type TFunctionDeclaration Extends TCallableDeclaration Final
+	Method ToString:String() Override
+		Return "Function " + GetName()
 	End Method
 	
-	Method ToString:String() Override
-		Return "Local " + name
+	Method IsReferrableByName:Int() Override
+		Return True
 	End Method
 End Type
 
 
 
-Type TFieldSymbol Extends TVariableSymbol Final
-	Method New(name:String)
-		Self.name = name
+Type TMethodDeclaration Extends TCallableDeclaration Final
+	Method ToString:String() Override
+		Return "Method " + GetName()
 	End Method
 	
-	Method ToString:String() Override
-		Return "Field " + name
+	Method IsReferrableByName:Int() Override
+		Return True
 	End Method
 End Type
 
 
 
-'Type TCallableSymbol Extends TNamedSymbol
-'End Type
-
-
-
-Type TConstructorSymbol Extends TSymbol Final 'TCallableSymbol
-	Method New()
+Type TConstructorDeclaration Extends TCallableDeclaration Final
+	Method ToString:String() Override
+		Return GetName()
 	End Method
 	
-	Method ToString:String() Override
-		Return "New"
+	Method IsReferrableByName:Int() Override
+		Return False
 	End Method
 End Type
 
 
 
-Type TFinalizerSymbol Extends TSymbol Final 'TCallableSymbol
-	Method New()
+Type TFinalizerDeclaration Extends TCallableDeclaration Final
+	Method ToString:String() Override
+		Return GetName()
 	End Method
 	
-	Method ToString:String() Override
-		Return "Delete"
+	Method IsReferrableByName:Int() Override
+		Return False
 	End Method
 End Type
 
 
 
-Type TFunctionSymbol Extends TNamedSymbol
-	Method New(name:String)
-		Self.name = name
-	End Method
-	
-	Method ToString:String() Override
-		Return "Function " + name
-	End Method
-End Type
-
-
-
-Type TMethodSymbol Extends TNamedSymbol
-	'Field ReadOnly body:TBlock
-	
-	Method New(name:String)', body:TBlock)
-		Self.name = name
-		'Self.body = body
-	End Method
-	
-	Method ToString:String() Override
-		Return "Method " + name
-	End Method
-End Type
-
-
-
-TTypeSymbol.Byte_    = New TStructTypeSymbol("Byte")
-TTypeSymbol.Short_   = New TStructTypeSymbol("Short")
-TTypeSymbol.Int_     = New TStructTypeSymbol("Int")
-TTypeSymbol.UInt_    = New TStructTypeSymbol("UInt")
-TTypeSymbol.Long_    = New TStructTypeSymbol("Long")
-TTypeSymbol.ULong_   = New TStructTypeSymbol("ULong")
-TTypeSymbol.Float_   = New TStructTypeSymbol("Float")
-TTypeSymbol.Double_  = New TStructTypeSymbol("Double")
-TTypeSymbol.Object_  = New TClassTypeSymbol("Object", Null, Null)
-TTypeSymbol.String_  = New TClassTypeSymbol("String", TTypeSymbol.Object_, Null)
-TTypeSymbol.Void     = New TVoidTypeSymbol
-TTypeSymbol.Null_    = New TNullTypeSymbol
-Type TTypeSymbol Extends TNamedSymbol Abstract
-	Global Byte_:TStructTypeSymbol
-	Global Short_:TStructTypeSymbol
-	Global Int_:TStructTypeSymbol
-	Global UInt_:TStructTypeSymbol
-	Global Long_:TStructTypeSymbol
-	Global ULong_:TStructTypeSymbol
-	Global Float_:TStructTypeSymbol
-	Global Double_:TStructTypeSymbol
-	Global Object_:TClassTypeSymbol
-	Global String_:TClassTypeSymbol
-	Global Void:TVoidTypeSymbol
-	Global Null_:TNullTypeSymbol
+TTypeDeclaration.Byte_    = New TStructDeclaration("Byte")
+TTypeDeclaration.Short_   = New TStructDeclaration("Short")
+TTypeDeclaration.Int_     = New TStructDeclaration("Int")
+TTypeDeclaration.UInt_    = New TStructDeclaration("UInt")
+TTypeDeclaration.Long_    = New TStructDeclaration("Long")
+TTypeDeclaration.ULong_   = New TStructDeclaration("ULong")
+TTypeDeclaration.Float_   = New TStructDeclaration("Float")
+TTypeDeclaration.Double_  = New TStructDeclaration("Double")
+TTypeDeclaration.Object_  = New TClassDeclaration("Object", Null, Null)
+TTypeDeclaration.String_  = New TClassDeclaration("String", Null, Null) ' TODO 'TTypeSymbol.Object_, Null)
+'TTypeDeclaration.Void     = New TVoidTypeDeclaration
+'TTypeDeclaration.Null_    = New TNullTypeDeclaration
+Type TTypeDeclaration Implements IDeclaration Abstract
+	Global Byte_:TStructDeclaration
+	Global Short_:TStructDeclaration
+	Global Int_:TStructDeclaration
+	Global UInt_:TStructDeclaration
+	Global Long_:TStructDeclaration
+	Global ULong_:TStructDeclaration
+	Global Float_:TStructDeclaration
+	Global Double_:TStructDeclaration
+	Global Object_:TClassDeclaration
+	Global String_:TClassDeclaration
+	'Global Void:TVoidTypeDeclaration
+	'Global Null_:TNullTypeDeclaration
 	'Global Unknown:TType
 	
 	Private
-	Field ptrType:TPtrTypeSymbol = Null
-	Field varType:TVarTypeSymbol = Null
-	Field arrayTypes:TArrayTypeSymbol[] = Null ' index = dimension count - 1
+	'Field ptrType:TPtrTypeSymbol = Null
+	'Field varType:TVarTypeSymbol = Null
+	'Field arrayTypes:TArrayTypeSymbol[] = Null ' index = dimension count - 1
 	'Field callableTypes:TCallableType[][] = Null ' callable types with this type as the return type and no parameter names; 1st index = parameter count
 	'Field genericTypes:TType[][] = Null ' all the fully constructed types from this generic type; 1st index = type parameter count
 	
+	Rem
+	Protected
+	Method New() End Method
 	Public
 	Method ToPtr:TPtrTypeSymbol()
 		If Not ptrType Then ptrType = New TPtrTypeSymbol(Self)
@@ -252,27 +314,60 @@ Type TTypeSymbol Extends TNamedSymbol Abstract
 		If Not arrayTypes[dimensions - 1] Then arrayTypes[dimensions - 1] = New TArrayTypeSymbol(Self, dimensions)
 		Return arrayTypes[dimensions - 1]
 	End Method
-	
-	'Method ToString:String() Override Abstract
-	
+	End Rem
 	' TODO: ToCode(withColon, scope)
-End Type
-
-
-
-Type TValueTypeSymbol Extends TTypeSymbol Abstract
-End Type
-
-Type TReferenceTypeSymbol Extends TTypeSymbol Abstract
-End Type
-
-
-
-Type TStructTypeSymbol Extends TValueTypeSymbol Final
-	Field ReadOnly name:String
 	
-	Method New(name:String)
+	
+	Private
+	Field ReadOnly name:String
+	'Field ReadOnly syntax:TTypeDeclarationSyntax
+	
+	Protected
+	Method New() End Method
+	
+	Public	
+	Method GetSyntax:TTypeDeclarationSyntax() Override Abstract
+	
+	Method GetName:String() Override
+		Return name
+	End Method
+
+	Method IsReferrableByName:Int() Override
+		Return True
+	End Method
+End Type
+
+
+
+Type TValueTypeDeclaration Extends TTypeDeclaration Abstract
+End Type
+
+
+
+Type TReferenceTypeDeclaration Extends TTypeDeclaration Abstract
+End Type
+
+
+
+Type TStructDeclaration Extends TValueTypeDeclaration Final
+	Private
+	Field ReadOnly syntax:TStructDeclarationSyntax
+		
+	Method New() End Method
+	
+	Public
+	Method New(syntax:TStructDeclarationSyntax)
+		Self.name = syntax.name.identifier.lexerToken.value
+		Self.syntax = syntax
+	End Method
+	
+	Method New(name:String) ' for imported symbols
 		Self.name = name
+		Self.syntax = Null
+	End Method
+	
+	Method GetSyntax:TStructDeclarationSyntax() Override
+		Return syntax
 	End Method
 	
 	Method ToString:String() Override
@@ -280,27 +375,64 @@ Type TStructTypeSymbol Extends TValueTypeSymbol Final
 	End Method
 End Type
 
-Type TClassTypeSymbol Extends TReferenceTypeSymbol Final
-	Field ReadOnly superClass:TClassTypeSymbol
-	Field ReadOnly superInterfaces:TInterfaceTypeSymbol[]
+
+
+Type TClassDeclaration Extends TReferenceTypeDeclaration Final
+	Private
+	Field ReadOnly syntax:TClassDeclarationSyntax
+	Field ReadOnly superClass:TClass
+	Field ReadOnly superInterfaces:TInterface[]
+		
+	Method New() End Method
 	
-	Method New(name:String, superClass:TClassTypeSymbol, superInterfaces:TInterfaceTypeSymbol[])
-		Self.name = name
+	Public
+	Method New(syntax:TClassDeclarationSyntax, superClass:TClass, superInterfaces:TInterface[])
+		Self.name = syntax.name.identifier.lexerToken.value
+		Self.syntax = syntax
 		Self.superClass = superClass
 		Self.superInterfaces = superInterfaces
 	End Method
-
+	
+	Method New(name:String, superClass:TClass, superInterfaces:TInterface[]) ' for imported symbols
+		Self.name = name
+		Self.syntax = Null
+		Self.superClass = superClass
+		Self.superInterfaces = superInterfaces
+	End Method
+	
+	Method GetSyntax:TClassDeclarationSyntax() Override
+		Return syntax
+	End Method
+	
 	Method ToString:String() Override
 		Return "Class " + name
 	End Method
 End Type
 
-Type TInterfaceTypeSymbol Extends TReferenceTypeSymbol Final
-	Field ReadOnly superInterfaces:TInterfaceTypeSymbol[]
+
+
+Type TInterfaceDeclaration Extends TReferenceTypeDeclaration Final
+	Private
+	Field ReadOnly syntax:TInterfaceDeclarationSyntax
+	Field ReadOnly superInterfaces:TInterface[]
+		
+	Method New() End Method
 	
-	Method New(name:String, superInterfaces:TInterfaceTypeSymbol[])
-		Self.name = name
+	Public
+	Method New(syntax:TInterfaceDeclarationSyntax, superInterfaces:TInterface[])
+		Self.name = syntax.name.identifier.lexerToken.value
+		Self.syntax = syntax
 		Self.superInterfaces = superInterfaces
+	End Method
+	
+	Method New(name:String, superInterfaces:TInterface[]) ' for imported symbols
+		Self.name = name
+		Self.syntax = Null
+		Self.superInterfaces = superInterfaces
+	End Method
+	
+	Method GetSyntax:TInterfaceDeclarationSyntax() Override
+		Return syntax
 	End Method
 	
 	Method ToString:String() Override
@@ -308,16 +440,32 @@ Type TInterfaceTypeSymbol Extends TReferenceTypeSymbol Final
 	End Method
 End Type
 
-Type TEnumTypeSymbol Extends TValueTypeSymbol Final
-	Field ReadOnly baseType:TStructTypeSymbol
-	Field ReadOnly isFlags:Int
-	
-	Method New(name:String, baseType:TStructTypeSymbol, isFlags:Int)
-		Self.name = name
-		Self.baseType = baseType
-		Self.isFlags = isFlags
-	End Method
 
+
+Type TEnumDeclaration Extends TValueTypeDeclaration Final
+	Private
+	Field ReadOnly syntax:TEnumDeclarationSyntax
+	Field ReadOnly baseType:TStruct
+	
+	Method New() End Method
+	
+	Public
+	Method New(syntax:TEnumDeclarationSyntax, baseType:TStruct, isFlags:Int)
+		Self.name = syntax.name.identifier.lexerToken.value
+		Self.syntax = syntax
+		Self.baseType = baseType
+	End Method
+	
+	Method New(name:String, baseType:TStruct, isFlags:Int) ' for imported symbols
+		Self.name = name
+		Self.syntax = Null
+		Self.baseType = baseType
+	End Method
+	
+	Method GetSyntax:TEnumDeclarationSyntax() Override
+		Return syntax
+	End Method
+	
 	Method ToString:String() Override
 		Return "Enum " + name
 	End Method
@@ -325,10 +473,129 @@ End Type
 
 
 
-Type TPtrTypeSymbol Extends TValueTypeSymbol Final
-	Field ReadOnly referentType:TTypeSymbol
+Type TType Implements ISymbol Abstract
+End Type
+
+
+
+Type TValueType Extends TType Abstract
+End Type
+
+
+
+Type TReferenceType Extends TType Abstract
+End Type
+
+
+
+Type TStruct Extends TValueType Final
+	Private
+	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly declaration:TStructDeclaration
 	
-	Method New(referentType:TTypeSymbol)
+	Public
+	Method New(syntax:TTypeBaseSyntax, declaration:TStructDeclaration)
+		Self.syntax = syntax
+		Self.declaration = declaration
+	End Method
+	
+	Method GetSyntax:TTypeBaseSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetDeclaration:TStructDeclaration()
+		Return declaration
+	End Method
+	
+	Method ToString:String() Override
+		Return declaration.GetName()
+	End Method
+End Type
+
+
+
+Type TClass Extends TReferenceType Final
+	Private
+	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly declaration:TClassDeclaration
+	
+	Public
+	Method New(syntax:TTypeBaseSyntax, declaration:TClassDeclaration)
+		Self.syntax = syntax
+		Self.declaration = declaration
+	End Method
+	
+	Method GetSyntax:TTypeBaseSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetDeclaration:TClassDeclaration()
+		Return declaration
+	End Method
+	
+	Method ToString:String() Override
+		Return declaration.GetName()
+	End Method
+End Type
+
+
+
+Type TInterface Extends TReferenceType Final
+	Private
+	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly declaration:TInterfaceDeclaration
+	
+	Public
+	Method New(syntax:TTypeBaseSyntax, declaration:TInterfaceDeclaration)
+		Self.syntax = syntax
+		Self.declaration = declaration
+	End Method
+	
+	Method GetSyntax:TTypeBaseSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetDeclaration:TInterfaceDeclaration()
+		Return declaration
+	End Method
+	
+	Method ToString:String() Override
+		Return declaration.GetName()
+	End Method
+End Type
+
+
+
+Type TEnum Extends TValueType Final
+	Private
+	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly declaration:TEnumDeclaration
+	
+	Public
+	Method New(syntax:TTypeBaseSyntax, declaration:TEnumDeclaration)
+		Self.syntax = syntax
+		Self.declaration = declaration
+	End Method
+	
+	Method GetSyntax:TTypeBaseSyntax() Override
+		Return syntax
+	End Method
+	
+	Method GetDeclaration:TEnumDeclaration()
+		Return declaration
+	End Method
+	
+	Method ToString:String() Override
+		Return declaration.GetName()
+	End Method
+End Type
+
+
+
+Type TPtrType Extends TValueType Final
+	Field ReadOnly referentType:TType
+	
+	Method New(referentType:TType)
 		Self.referentType = referentType
 	End Method
 
@@ -337,10 +604,10 @@ Type TPtrTypeSymbol Extends TValueTypeSymbol Final
 	End Method
 End Type
 
-Type TVarTypeSymbol Extends TValueTypeSymbol Final
-	Field ReadOnly referentType:TTypeSymbol
+Type TVarType Extends TValueType Final
+	Field ReadOnly referentType:TType
 	
-	Method New(referentType:TTypeSymbol)
+	Method New(referentType:TType)
 		Self.referentType = referentType
 	End Method
 
@@ -349,11 +616,11 @@ Type TVarTypeSymbol Extends TValueTypeSymbol Final
 	End Method
 End Type
 
-Type TArrayTypeSymbol Extends TReferenceTypeSymbol Final
-	Field ReadOnly elementType:TTypeSymbol
+Type TArrayType Extends TReferenceType Final
+	Field ReadOnly elementType:TType
 	Field ReadOnly dimensions:Int
 	
-	Method New(elementType:TTypeSymbol, dimensions:Int)
+	Method New(elementType:TType, dimensions:Int)
 		Assert dimensions >= 1 Else "Array type must have positive number of dimensions"
 		Self.elementType = elementType
 		Self.dimensions = dimensions
@@ -366,8 +633,12 @@ End Type
 
 
 
-Type TVoidTypeSymbol Extends TTypeSymbol Final
+Type TVoidType Extends TType Final
 	Method New()
+	End Method
+	
+	Method GetSyntax:ISyntax() Override
+		Return Null
 	End Method
 	
 	Method ToString:String() Override
@@ -375,8 +646,14 @@ Type TVoidTypeSymbol Extends TTypeSymbol Final
 	End Method
 End Type
 
-Type TNullTypeSymbol Extends TTypeSymbol Final
+
+
+Type TNullType Extends TType Final
 	Method New()
+	End Method
+	
+	Method GetSyntax:ISyntax() Override
+		Return Null
 	End Method
 	
 	Method ToString:String() Override

@@ -1,16 +1,16 @@
 SuperStrict
 Import "ISyntax.bmx"
 Import "SyntaxToken.bmx"
-Import "SyntaxUtils.bmx"
 ? Debug
 Import BRL.Reflection
+Import "ReflectionUtils.bmx"
 ?
+
+
 
 ' TODO: replace Assert in TExpressionStatementSyntax with marker interface, do the same whereever else applicable
 ' TODO: verify union-like types or replace with subtyping
 ' TODO: metadata to validate token types in TSyntaxToken-type fields?
-
-Public
 
 Type TSyntax Implements ISyntax Abstract
 	Protected
@@ -578,7 +578,7 @@ End Type
 
 
 Type TCallableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Final
-	Field ReadOnly initiatorKeyword:TSyntaxToken {nullable}
+	Field ReadOnly initiatorKeyword:TSyntaxToken
 	Field ReadOnly operatorKeyword:TSyntaxToken {nullable minor}
 	Field ReadOnly name:TCallableDeclarationNameSyntax
 	Field ReadOnly typeParameters:TTypeParameterListSyntax {nullable}
@@ -619,7 +619,7 @@ End Type
 
 
 Type TVariableDeclarationSyntax Extends TSyntax Implements IDeclarationSyntax Final
-	Field ReadOnly declarationKeyword:TSyntaxToken {nullable}
+	Field ReadOnly declarationKeyword:TSyntaxToken {nullable} ' null for parameters
 	Field ReadOnly modifiers:TVariableModifierSyntax[]
 	Field ReadOnly declarators:TVariableDeclaratorListSyntax
 	Field ReadOnly metaData:TMetaDataSyntax {nullable}
@@ -2961,6 +2961,34 @@ End Type
 
 Private
 
+' verify types
+Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
+Assert iSyntaxTypeId Else "ISyntax type not found"
+Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
+Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
+Rem
+? Debug
+For Local t:TTypeId = EachIn TTypeId.EnumTypes()
+	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
+		' verify presence of ISyntaxOrSyntaxToken field
+		Local hasSyntaxTokenField:Int = False
+		For Local f:TField = EachIn GetAllFields(t)
+			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True
+			' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
+		Next
+		If Not hasSyntaxTokenField Then RuntimeError "Type " + t.Name() + " implements ISyntax and must have a TSyntaxToken field"
+		' verify correct use of {nullable}
+		For Local f:TField = EachIn GetAllFields(t)
+			If f.MetaData("nullable") Then
+				If Not f.TypeId().ExtendsType(ObjectTypeId) Then RuntimeError "Cannot use {nullable} on non-object fields (" + t.Name() + "." + f.Name() + ")"
+				If f.TypeId().ExtendsType(StringTypeId) Then RuntimeError "Cannot use {nullable} on String fields (" + t.Name() + "." + f.Name() + ")"
+				If f.TypeId().ExtendsType(ArrayTypeId) Then RuntimeError "Cannot use {nullable} on array fields (" + t.Name() + "." + f.Name() + ")"
+			End If
+		Next
+	End If
+Next
+?
+End Rem
 Function Verify(syntax:ISyntax)
 	? Debug
 	Local t:TTypeId = TTypeId.ForObject(syntax)

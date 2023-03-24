@@ -14,7 +14,7 @@ Type T
 	'Method New()
 	'	Local l:Int
 	'End Method
-	Function A Abstract
+	Function A() Abstract
 End Type
 
 

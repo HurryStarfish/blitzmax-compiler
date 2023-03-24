@@ -7,6 +7,7 @@ Import BRL.StandardIO
 Import "lexer/Lexer.bmx"
 Import "parser/Parser.bmx"
 Import "syntax/SyntaxVisitor.bmx"
+Import "syntax/SyntaxUtils.bmx"
 Import "symbols/Visitors.bmx"
 
 Global testfiledir:String = CurrentDir() + "/samples/"
@@ -110,7 +111,7 @@ Function TestParser(doPrint:Int = True)
 			Print "PARSE ERROR: " + error.ToString()
 			'Notify "PARSE ERROR: " + error.ToString()
 		Next
-		Print SyntaxToString(x.GetRoot().GetSyntaxOrSyntaxToken())
+		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken())
 		
 		Print "-------------------------"
 		
@@ -133,7 +134,7 @@ Function TestSymbols(doPrint:Int = True)
 		
 		Local v:TCreateScopesAndInsertNamedDeclarationsVisitor = New TCreateScopesAndInsertNamedDeclarationsVisitor
 		v.Visit x
-		Print SyntaxToString(x.GetRoot().GetSyntaxOrSyntaxToken(), False, v.scopes)
+		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken(), False, v.scopes)
 	End If
 End Function
 

@@ -14,11 +14,11 @@ End Enum
 
 Public
 Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
-	Field ReadOnly scopes:TMap = New TMap'<ISyntax, TScope>
+	Field ReadOnly scopes:TMap = New TMap'<TSyntaxLink, TScope>
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TCodeBlockSyntax)
 		' create scope for every code block that hasn't already been given one by another method
-		If Not scopes.Contains(syntax) Then scopes[syntax] = New TScope(FindParentScope(link))
+		If Not scopes.Contains(link) Then scopes[link] = New TScope(FindParentScope(link))
 	End Method
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TVariableDeclarationSyntax)
@@ -35,15 +35,16 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TEnumDeclarationSyntax)
 		Assert Not scopes.Contains(syntax) Else "Enum declaration unexpectedly already has a scope"
-		scopes[syntax] = New TScope(FindParentScope(link))
+		scopes[link] = New TScope(FindParentScope(link))
 	End Method
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TEnumMemberDeclarationSyntax)
-		Local e:TEnumDeclarationSyntax = TEnumDeclarationSyntax(link.GetParent().GetSyntaxOrSyntaxToken())
+		Local l:TSyntaxLink = link.GetParent()
+		Local e:TEnumDeclarationSyntax = TEnumDeclarationSyntax(l.GetSyntaxOrSyntaxToken())
 		Assert e Else "Parent of enum member is not an enum declaration"
 		Local nameStr:String = syntax.name.identifier.lexerToken.value
-		Local scope:TScope = TScope(scopes[e])
-		scope.AddSymbol New TConstSymbol(nameStr)
+		Local scope:TScope = TScope(scopes[l])
+		scope.AddSymbol New TConstDeclaration(nameStr)
 	End Method
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TCallableDeclarationSyntax)
@@ -51,19 +52,21 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Local nameStr:String
 		If syntax.name.identifierName Then
 			Local nameStr:String = syntax.name.identifierName.identifier.lexerToken.value
-			Local symbol:TNamedSymbol
+			Local symbol:TCallableDeclaration
 			Select syntax.initiatorKeyword.Kind()
-				Case TTokenKind.Function_ symbol = New TFunctionSymbol(nameStr)
-				Case TTokenKind.Method_ symbol = New TMethodSymbol(nameStr)
+				Case TTokenKind.Function_ symbol = New TFunctionDeclaration(nameStr)
+				Case TTokenKind.Method_ symbol = New TMethodDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
 			scope.AddSymbol symbol
 		Else If syntax.name.keywordName Then
+			Local symbol:TCallableDeclaration
 			Select syntax.name.keywordName.Kind()
-				Case TTokenKind.New_ Throw "TODO"
-				Case TTokenKind.Delete_ Throw "TODO"
+				Case TTokenKind.New_ symbol = New TConstructorDeclaration(nameStr)
+				Case TTokenKind.Delete_ symbol = New TFinalizerDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
+			scope.AddSymbol symbol
 		Else If syntax.name.operatorName Then
 			'TOperatorSyntax
 			Throw "TODO"
@@ -105,23 +108,23 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 	Method VisitTopDown(link:TSyntaxLink, syntax:TTypeDeclarationSyntax)
 		' TODO: handle other kinds of types and type parameters
 		Local scope:TScope = GetParentCodeBlockScope(link)
-		Local symbol:TTypeSymbol
+		Local symbol:TTypeDeclaration
 		If TClassDeclarationSyntax(syntax) Then
 			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
 			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TClassTypeSymbol(name, Null, Null) ' TODO
+			symbol = New TClassDeclaration(name, Null, Null) ' TODO
 		Else If TStructDeclarationSyntax(syntax) Then
 			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
 			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TStructTypeSymbol(name)
+			symbol = New TStructDeclaration(name)
 		Else If TInterfaceDeclarationSyntax(syntax) Then
 			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
 			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TInterfaceTypeSymbol(name, Null) ' TODO
+			symbol = New TInterfaceDeclaration(name, Null) ' TODO
 		Else If TEnumDeclarationSyntax(syntax) Then
 			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
 			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TEnumTypeSymbol(name, Null, syntax.flagsKeyword <> Null) ' TODO
+			symbol = New TEnumDeclaration(name, Null, syntax.flagsKeyword <> Null) ' TODO
 		Else
 			RuntimeError "Missing case"
 		End If
@@ -131,16 +134,16 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 	Private
 	Method GetParentCodeBlockScope:TScope(link:TSyntaxLink) ' requires the scope to exist already
 		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
-		Local scope:TScope = TScope(scopes[link.GetParent().GetSyntaxOrSyntaxToken()])
+		Local scope:TScope = TScope(scopes[link.GetParent()])
 		Assert scope Else "Missing scope"
 		Return scope
 	End Method
 	
 	Method CreateAndAttachScope:TScope(link:TSyntaxLink, syntax:TCodeBlockSyntax) ' requires the scope to not exist yet
 		Assert link.GetSyntaxOrSyntaxToken() = syntax Else "Link does not match syntax"
-		Assert Not scopes.Contains(syntax) Else "Code block unexpectedly already has a scope"
+		Assert Not scopes.Contains(link) Else "Code block unexpectedly already has a scope"
 		Local scope:TScope = New TScope(FindParentScope(link))
-		scopes[syntax] = scope
+		scopes[link] = scope
 		Return scope
 	End Method
 	
@@ -148,7 +151,7 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Repeat
 			link = link.GetParent()
 			If Not link Then Return Null
-			Local scope:TScope = TScope(scopes[link.GetSyntaxOrSyntaxToken()])
+			Local scope:TScope = TScope(scopes[link])
 			If scope Then Return scope
 		Forever
 	End Method
@@ -193,20 +196,20 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Function ProcessDeclarator(syntax:TVariableDeclaratorListElementSyntax, scope:TScope, declarationKeyword:TSyntaxToken, shouldHaveDeclarationKeyword:Int)
 			Local nameStr:String = syntax.declarator.name.identifier.lexerToken.value
 			
-			Local symbol:TVariableSymbol
+			Local symbol:TVariableDeclaration
 			If (Not declarationKeyword) Or (Not shouldHaveDeclarationKeyword) Then
 				'                                   ^ ignore keyword if unexpected
-				symbol = New TLocalSymbol(nameStr)
+				symbol = New TLocalDeclaration(nameStr)
 			Else
 				Select declarationKeyword.Kind()
-					Case TTokenKind.Const_  symbol = New TConstSymbol(nameStr)
-					Case TTokenKind.Global_ symbol = New TGlobalSymbol(nameStr)
-					Case TTokenKind.Local_  symbol = New TLocalSymbol(nameStr)
-					Case TTokenKind.Field_  symbol = New TFieldSymbol(nameStr)
+					Case TTokenKind.Const_  symbol = New TConstDeclaration(nameStr)
+					Case TTokenKind.Global_ symbol = New TGlobalDeclaration(nameStr)
+					Case TTokenKind.Local_  symbol = New TLocalDeclaration(nameStr)
+					Case TTokenKind.Field_  symbol = New TFieldDeclaration(nameStr)
 					Default RuntimeError "Missing case"
 				End Select
 			End If
-			If scope.GetSymbolForName(nameStr) Then Throw "TODO" ' TODO: handle duplicate declarations
+			'If scope.GetSymbolForName(nameStr) Then Throw "TODO" ' TODO: handle duplicate declarations
 			scope.AddSymbol symbol
 		End Function
 	End Function

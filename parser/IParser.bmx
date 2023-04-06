@@ -1,6 +1,7 @@
 SuperStrict
 Import "ParseError.bmx"
 Import "../syntax/Syntax.bmx"
+Import BRL.LinkedList
 
 
 

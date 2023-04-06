@@ -11,9 +11,9 @@ Function F(n:Int = 3)
 End Function
 
 Type T
-	'Method New()
-	'	Local l:Int
-	'End Method
+	Method New()
+		Local l:Int
+	End Method
 	Function A() Abstract
 End Type
 
@@ -26,6 +26,8 @@ End Enum
 Interface I Extends II
 	Function F()
 	Method M()
+	Method M(s:String)
+	Method M:String(s:String, i:Int)
 End Interface
 
 

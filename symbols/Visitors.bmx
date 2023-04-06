@@ -6,6 +6,12 @@ Import BRL.Map
 
 
 Private
+'Enum EVisibility
+'	Public_
+'	Protected_
+'	Private_
+'End Enum
+
 Enum EAllowedDeclaratorCount
 	ExactlyOne
 	AtLeastOne
@@ -17,8 +23,50 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 	Field ReadOnly scopes:TMap = New TMap'<TSyntaxLink, TScope>
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TCodeBlockSyntax)
-		' create scope for every code block that hasn't already been given one by another method
-		If Not scopes.Contains(link) Then scopes[link] = New TScope(FindParentScope(link))
+		' create scope for code block if it hasn't already been given one by another method
+		Local scope:TScope = TScope(scopes[link])
+		If Not scope Then
+			scope = New TScope(FindParentScope(link))
+			scopes[link] = scope
+		End If
+		
+		'Local currentVisibility:EVisibility = EVisibility.Public_
+		For Local elementSyntax:ICodeBlockElementSyntax = EachIn syntax.elements
+			'If TVisibilityDirectiveSyntax(elementSyntax) Then
+			'	Select TVisibilityDirectiveSyntax.visibility.Kind()
+			'		Case TTokenKind.Public_    currentVisibility:EVisibility = EVisibility.Public_
+			'		Case TTokenKind.Protected_ currentVisibility:EVisibility = EVisibility.Protected_
+			'		Case TTokenKind.Private_   currentVisibility:EVisibility = EVisibility.Private_
+			'		Default RuntimeError "Missing case"
+			'	End Select
+			'End If
+			If TTypeDeclarationSyntax(elementSyntax) Then
+				Local typeDeclarationSyntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(elementSyntax)
+				Local typeDeclarationSyntaxLink:TSyntaxLink = link.FindChild(typeDeclarationSyntax)
+				Local typeDeclaration:TTypeDeclaration
+				' TODO: handle type parameters
+				If TClassDeclarationSyntax(typeDeclarationSyntax) Then
+					Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(typeDeclarationSyntax)
+					Local name:String = syntax.name.identifier.lexerToken.value
+					typeDeclaration = New TClassDeclaration(name, Null, Null) ' TODO
+				Else If TStructDeclarationSyntax(typeDeclarationSyntax) Then
+					Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(typeDeclarationSyntax)
+					Local name:String = syntax.name.identifier.lexerToken.value
+					typeDeclaration = New TStructDeclaration(name)
+				Else If TInterfaceDeclarationSyntax(typeDeclarationSyntax) Then
+					Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(typeDeclarationSyntax)
+					Local name:String = syntax.name.identifier.lexerToken.value
+					typeDeclaration = New TInterfaceDeclaration(name, Null) ' TODO
+				Else If TEnumDeclarationSyntax(typeDeclarationSyntax) Then
+					Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(typeDeclarationSyntax)
+					Local name:String = syntax.name.identifier.lexerToken.value
+					typeDeclaration = New TEnumDeclaration(name, Null, syntax.flagsKeyword <> Null) ' TODO
+				Else
+					RuntimeError "Missing case"
+				End If
+				scope.AddDeclaration typeDeclaration
+			End If
+		Next
 	End Method
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TVariableDeclarationSyntax)
@@ -44,7 +92,7 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Assert e Else "Parent of enum member is not an enum declaration"
 		Local nameStr:String = syntax.name.identifier.lexerToken.value
 		Local scope:TScope = TScope(scopes[l])
-		scope.AddSymbol New TConstDeclaration(nameStr)
+		scope.AddDeclaration New TConstDeclaration(nameStr)
 	End Method
 	
 	Method VisitTopDown(link:TSyntaxLink, syntax:TCallableDeclarationSyntax)
@@ -52,21 +100,21 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Local nameStr:String
 		If syntax.name.identifierName Then
 			Local nameStr:String = syntax.name.identifierName.identifier.lexerToken.value
-			Local symbol:TCallableDeclaration
+			Local declaration:TCallableDeclaration
 			Select syntax.initiatorKeyword.Kind()
-				Case TTokenKind.Function_ symbol = New TFunctionDeclaration(nameStr)
-				Case TTokenKind.Method_ symbol = New TMethodDeclaration(nameStr)
+				Case TTokenKind.Function_ declaration = New TFunctionDeclaration(nameStr)
+				Case TTokenKind.Method_ declaration = New TMethodDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
-			scope.AddSymbol symbol
+			scope.AddDeclaration declaration
 		Else If syntax.name.keywordName Then
-			Local symbol:TCallableDeclaration
+			Local declaration:TCallableDeclaration
 			Select syntax.name.keywordName.Kind()
-				Case TTokenKind.New_ symbol = New TConstructorDeclaration(nameStr)
-				Case TTokenKind.Delete_ symbol = New TFinalizerDeclaration(nameStr)
+				Case TTokenKind.New_ declaration = New TConstructorDeclaration(nameStr)
+				Case TTokenKind.Delete_ declaration = New TFinalizerDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
-			scope.AddSymbol symbol
+			scope.AddDeclaration declaration
 		Else If syntax.name.operatorName Then
 			'TOperatorSyntax
 			Throw "TODO"
@@ -103,32 +151,6 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 		Local declaration:TVariableDeclarationSyntax = syntax.declaration
 		Local bodyScope:TScope = CreateAndAttachScope(link.FindChild(syntax.body), syntax.body)
 		AddSymbolsForDeclaratorsToScope declaration, bodyScope, False, EAllowedDeclaratorCount.ExactlyOne
-	End Method
-	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TTypeDeclarationSyntax)
-		' TODO: handle other kinds of types and type parameters
-		Local scope:TScope = GetParentCodeBlockScope(link)
-		Local symbol:TTypeDeclaration
-		If TClassDeclarationSyntax(syntax) Then
-			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TClassDeclaration(name, Null, Null) ' TODO
-		Else If TStructDeclarationSyntax(syntax) Then
-			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TStructDeclaration(name)
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TInterfaceDeclaration(name, Null) ' TODO
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			Local name:String = syntax.name.identifier.lexerToken.value
-			symbol = New TEnumDeclaration(name, Null, syntax.flagsKeyword <> Null) ' TODO
-		Else
-			RuntimeError "Missing case"
-		End If
-		scope.AddSymbol symbol
 	End Method
 	
 	Private
@@ -210,7 +232,7 @@ Type TCreateScopesAndInsertNamedDeclarationsVisitor Extends TSyntaxVisitor
 				End Select
 			End If
 			'If scope.GetSymbolForName(nameStr) Then Throw "TODO" ' TODO: handle duplicate declarations
-			scope.AddSymbol symbol
+			scope.AddDeclaration symbol
 		End Function
 	End Function
 End Type

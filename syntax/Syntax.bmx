@@ -2966,17 +2966,18 @@ Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
 Assert iSyntaxTypeId Else "ISyntax type not found"
 Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
 Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
-Rem
 ? Debug
 For Local t:TTypeId = EachIn TTypeId.EnumTypes()
 	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
 		' verify presence of ISyntaxOrSyntaxToken field
-		Local hasSyntaxTokenField:Int = False
-		For Local f:TField = EachIn GetAllFields(t)
-			If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxTokenField = True
-			' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
-		Next
-		If Not hasSyntaxTokenField Then RuntimeError "Type " + t.Name() + " implements ISyntax and must have a TSyntaxToken field"
+		Local hasSyntaxOrSyntaxTokenField:Int = False
+		'For Local f:TField = EachIn GetAllFields(t)
+		'	If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxOrSyntaxTokenField = True
+		'	If f.TypeId().Interfaces().Contains(iSyntaxTypeId) Then hasSyntaxOrSyntaxTokenField = True
+		'Next
+		' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
+		hasSyntaxOrSyntaxTokenField = True
+		If Not hasSyntaxOrSyntaxTokenField Then RuntimeError "Type " + t.Name() + " which implements ISyntax must have at least one ISyntaxOrSyntaxToken field"
 		' verify correct use of {nullable}
 		For Local f:TField = EachIn GetAllFields(t)
 			If f.MetaData("nullable") Then
@@ -2988,7 +2989,7 @@ For Local t:TTypeId = EachIn TTypeId.EnumTypes()
 	End If
 Next
 ?
-End Rem
+
 Function Verify(syntax:ISyntax)
 	? Debug
 	Local t:TTypeId = TTypeId.ForObject(syntax)

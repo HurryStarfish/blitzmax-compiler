@@ -108,6 +108,11 @@ End Interface
 
 
 
+Interface IOverloadableDeclaration Extends IDeclaration
+End Interface
+
+
+
 Type TVariableDeclaration Implements IDeclaration Abstract
 	Private
 	Field ReadOnly name:String
@@ -187,6 +192,7 @@ Type TCallableDeclaration Implements IDeclaration Abstract
 		If syntax.name.identifierName Then
 			Self.name = syntax.name.identifierName.identifier.lexerToken.value
 		Else If syntax.name.keywordName Then
+		DebugStop
 			Self.name = syntax.name.keywordName.lexerToken.value
 		Else If syntax.name.operatorName Then
 			For Local t:TSyntaxToken = EachIn syntax.name.operatorName.tokens
@@ -214,7 +220,7 @@ End Type
 
 
 
-Type TFunctionDeclaration Extends TCallableDeclaration Final
+Type TFunctionDeclaration Extends TCallableDeclaration Implements IOverloadableDeclaration Final
 	Method ToString:String() Override
 		Return "Function " + GetName()
 	End Method
@@ -226,7 +232,7 @@ End Type
 
 
 
-Type TMethodDeclaration Extends TCallableDeclaration Final
+Type TMethodDeclaration Extends TCallableDeclaration Implements IOverloadableDeclaration Final
 	Method ToString:String() Override
 		Return "Method " + GetName()
 	End Method
@@ -238,7 +244,7 @@ End Type
 
 
 
-Type TConstructorDeclaration Extends TCallableDeclaration Final
+Type TConstructorDeclaration Extends TCallableDeclaration Implements IOverloadableDeclaration Final
 	Method ToString:String() Override
 		Return GetName()
 	End Method

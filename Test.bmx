@@ -132,9 +132,18 @@ Function TestSymbols(doPrint:Int = True)
 			'Notify "PARSE ERROR: " + error.ToString()
 		Next
 		
-		Local v:TCreateScopesAndInsertNamedDeclarationsVisitor = New TCreateScopesAndInsertNamedDeclarationsVisitor
-		v.Visit x
-		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken(), False, v.scopes)
+		Local vs:TCreateScopesVisitor = New TCreateScopesVisitor
+		vs.Visit x
+		Local vt:TCollectTypeDeclarationSyntaxesVisitor = New TCollectTypeDeclarationSyntaxesVisitor
+		vt.Visit x
+		
+		CreateTypeDeclarations vt.typeDeclarationSyntaxLinks, vs.scopes
+		
+		
+		
+		'Local vs:TCreateScopesAndInsertDeclarationsVisitor = New TCreateScopesAndInsertDeclarationsVisitor
+		'vs.Visit x
+		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken(), False, vs.scopes)
 	End If
 End Function
 

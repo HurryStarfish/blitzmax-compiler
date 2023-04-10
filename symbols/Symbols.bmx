@@ -80,7 +80,7 @@ End Type
 End Rem
 
 
-' TODO: distinguish between declaration and use
+
 Interface ISymbol
 	Method GetSyntax:ISyntax() ' returns nulls for imported symbols
 	'Method ToString:String() Override
@@ -496,16 +496,16 @@ End Type
 
 Type TStruct Extends TValueType Final
 	Private
-	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly syntax:TTypeSyntax
 	Field ReadOnly declaration:TStructDeclaration
 	
 	Public
-	Method New(syntax:TTypeBaseSyntax, declaration:TStructDeclaration)
+	Method New(syntax:TTypeSyntax, declaration:TStructDeclaration)
 		Self.syntax = syntax
 		Self.declaration = declaration
 	End Method
 	
-	Method GetSyntax:TTypeBaseSyntax() Override
+	Method GetSyntax:TTypeSyntax() Override
 		Return syntax
 	End Method
 	
@@ -522,16 +522,16 @@ End Type
 
 Type TClass Extends TReferenceType Final
 	Private
-	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly syntax:TTypeSyntax
 	Field ReadOnly declaration:TClassDeclaration
 	
 	Public
-	Method New(syntax:TTypeBaseSyntax, declaration:TClassDeclaration)
+	Method New(syntax:TTypeSyntax, declaration:TClassDeclaration)
 		Self.syntax = syntax
 		Self.declaration = declaration
 	End Method
 	
-	Method GetSyntax:TTypeBaseSyntax() Override
+	Method GetSyntax:TTypeSyntax() Override
 		Return syntax
 	End Method
 	
@@ -548,16 +548,16 @@ End Type
 
 Type TInterface Extends TReferenceType Final
 	Private
-	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly syntax:TTypeSyntax
 	Field ReadOnly declaration:TInterfaceDeclaration
 	
 	Public
-	Method New(syntax:TTypeBaseSyntax, declaration:TInterfaceDeclaration)
+	Method New(syntax:TTypeSyntax, declaration:TInterfaceDeclaration)
 		Self.syntax = syntax
 		Self.declaration = declaration
 	End Method
 	
-	Method GetSyntax:TTypeBaseSyntax() Override
+	Method GetSyntax:TTypeSyntax() Override
 		Return syntax
 	End Method
 	
@@ -574,16 +574,16 @@ End Type
 
 Type TEnum Extends TValueType Final
 	Private
-	Field ReadOnly syntax:TTypeBaseSyntax
+	Field ReadOnly syntax:TTypeSyntax
 	Field ReadOnly declaration:TEnumDeclaration
 	
 	Public
-	Method New(syntax:TTypeBaseSyntax, declaration:TEnumDeclaration)
+	Method New(syntax:TTypeSyntax, declaration:TEnumDeclaration)
 		Self.syntax = syntax
 		Self.declaration = declaration
 	End Method
 	
-	Method GetSyntax:TTypeBaseSyntax() Override
+	Method GetSyntax:TTypeSyntax() Override
 		Return syntax
 	End Method
 	

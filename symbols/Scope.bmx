@@ -6,19 +6,42 @@ Import BRL.Map
 
 Type TScope Final
 	Private
-	Field ReadOnly symbols:TMap = New TMap'<String, IDeclaration> ' key is not the same as name
+	Field ReadOnly declarations:TMap = New TMap'<String, IDeclaration | IOverloadableDeclaration[]> ' key is not the same as name
 	Field ReadOnly parent:TScope
+	Field ReadOnly inheritsLocalsFromParent:Int
 	
 	Method New() End Method
 	
 	Public
-	Method New(parent:TScope)
+	Method New(parent:TScope, inheritsLocalsFromParent:Int)
 		Self.parent = parent
+		Self.inheritsLocalsFromParent = inheritsLocalsFromParent
 	End Method
 	
-	Method AddSymbol(symbol:IDeclaration)
-		Assert Not symbols.Contains(New SSymbolKey(symbol).ToString()) Else "Scope already contains a symbol with this name"
-		symbols[New SSymbolKey(symbol).ToString()] = symbol
+	Method AddDeclaration(declaration:IDeclaration)
+		Local keyStr:String = New SSymbolKey(declaration).ToString()
+		If IOverloadableDeclaration(declaration) Then
+			Local existingOverloads:IOverloadableDeclaration[] = IOverloadableDeclaration[](declarations[keyStr])
+			declarations[keyStr] = existingOverloads + [declaration]
+		Else
+			Assert Not declarations.Contains(keyStr) Else "Scope already contains a symbol with this name"
+			declarations[keyStr] = declaration
+		End If
+	End Method
+	
+	Method LookUpDeclarationWIP:IDeclaration[](keyStr:String, includeLocals:Int)
+		Local value:Object = declarations[keyStr]
+		If value Then
+			If IDeclaration(value) Then
+				If Not (TLocalDeclaration(value) And Not includeLocals) Then Return [IDeclaration(value)]
+			Else If IOverloadableDeclaration[](value) Then
+				Return IOverloadableDeclaration[](value)
+			Else
+				RuntimeError "Missing case"
+			End If
+		Else
+			If parent Then Return parent.LookUpDeclarationWIP(keyStr, includeLocals And inheritsLocalsFromParent) Else Return Null
+		End If
 	End Method
 	
 	'Method GetSymbolForName:TNamedSymbol(name:String) ' returns null if not found
@@ -27,11 +50,24 @@ Type TScope Final
 	
 	Method ToString:String() Override
 		Local str:String
-		For Local symbol:IDeclaration = EachIn symbols.Values()
-			If str Then str :+ ", "
-			str :+ symbol.ToString()
+		For Local o:Object = EachIn declarations.Values()
+			If IDeclaration(o) Then
+				str = Append(str, IDeclaration(o))
+			Else If IOverloadableDeclaration[](o) Then
+				Local overloads:IOverloadableDeclaration[] = IOverloadableDeclaration[](o)
+				str = Append(str, overloads[0])
+				If overloads.length > 1 Then str :+ " (*" + IOverloadableDeclaration[](o).length + ")"
+			Else
+				RuntimeError "Missing case"
+			End If
 		Next
 		Return "Scope [" + str + "]"
+		
+		Function Append:String(str:String, declaration:IDeclaration)
+			If str Then str :+ ", "
+			str :+ declaration.ToString()
+			Return str
+		End Function
 	End Method
 End Type
 

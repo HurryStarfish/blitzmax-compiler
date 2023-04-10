@@ -1,6 +1,33 @@
 SuperStrict
 Framework BRL.Blitz
 
+
+Type T1 Extends T2 End Type
+Type T2 Implements I2 End Type
+Type T3 Extends T2 End Type
+
+
+Interface I1 End Interface
+Interface I2 Extends I1, I3 End Interface
+Interface I3 End Interface
+Rem
+Type N1 Extends N2.M2
+	Type M1
+	End Type
+End Type
+Type N2
+	Type M2 Extends N3
+	End Type
+End Type
+Type N3
+	Type M3
+		Type O3 Extends M3
+		End Type
+	End Type
+End Type
+End Rem
+
+Rem
 Function F(n:Int = 3)
 	Try
 		For Local i:Int = 1 Until 3
@@ -29,7 +56,7 @@ Interface I Extends II
 	Method M(s:String)
 	Method M:String(s:String, i:Int)
 End Interface
-
+End Rem
 
 'Type T Extends Object Implements ITest
 '	Function F() End Function

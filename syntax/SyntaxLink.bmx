@@ -39,6 +39,11 @@ Type TSyntaxLink Final
 		Return TSyntaxLink(parent)
 	End Method
 	
+	Method GetParentSyntax:ISyntax() 'nullable
+		Local parent:TSyntaxLink = GetParent()
+		If parent Then Return ISyntax(parent.syntaxOrSyntaxToken) Else Return Null
+	End Method
+	
 	Method GetChildren:TSyntaxLink[]()
 		If TCodeBlockSyntax(syntaxOrSyntaxToken) Then
 			' links for code blocks are weakly referenced, so that the corresponding
@@ -81,5 +86,4 @@ Type TSyntaxLink Final
 	Method GetCodeRange:SCodeRange()
 		Return syntaxOrSyntaxToken.CodeRange()
 	End Method
-
 End Type

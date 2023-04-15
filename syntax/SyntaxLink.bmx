@@ -73,6 +73,7 @@ Type TSyntaxLink Final
 	End Method
 	
 	Method FindChild:TSyntaxLink(childSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken) ' must be a direct child
+		' TODO: this will not work with reused syntax nodes!
 		For Local child:TSyntaxLink = EachIn GetChildren()
 			If child.syntaxOrSyntaxToken = childSyntaxOrSyntaxToken Then Return child
 		Next

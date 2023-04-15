@@ -1,6 +1,6 @@
 SuperStrict
 Framework BRL.StandardIO ' this is a comment
-'Include "test_include.bmx"
+Include "test_include.bmx"
 
 
 'Local x:T = New T
@@ -15,7 +15,7 @@ Framework BRL.StandardIO ' this is a comment
 'Local y:Object = STest<Int> Ptr(a)
 'Local z:Object = A<B<C>>()
 
-'Rem
+Rem
 r = a<b   ' comparison
 g = a<b>   ' generic function ptr (before: error)
 r = a<b>c   ' comparisons
@@ -50,7 +50,7 @@ f<a>b,c   ' generic call (before: error)
 If a < b & c > d End If
 While a < b & c > d Wend
 'For i = a < b To c > d Next
-'End Rem
+End Rem
 Rem
 ' specific requirements:
 ' - "<" can only be part of a generic if it directly follows an identifier (or some specific keywords?)

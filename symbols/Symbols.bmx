@@ -323,12 +323,10 @@ Type TTypeDeclaration Implements IDeclaration Abstract
 	End Rem
 	' TODO: ToCode(withColon, scope)
 	
-	
-	Private
+	Protected
 	Field ReadOnly name:String
 	'Field ReadOnly syntax:TTypeDeclarationSyntax
 	
-	Protected
 	Method New() End Method
 	
 	Public	
@@ -411,6 +409,9 @@ Type TClassDeclaration Extends TReferenceTypeDeclaration Final
 	End Method
 	
 	Method ToString:String() Override
+		Local name:String = Self.name
+		If superClass Then name :+ ":" + superClass.GetDeclaration().GetName()
+		For Local i:TInterface = EachIn superInterfaces name :+ ":" + i.GetDeclaration().GetName() Next
 		Return "Class " + name
 	End Method
 End Type
@@ -442,6 +443,8 @@ Type TInterfaceDeclaration Extends TReferenceTypeDeclaration Final
 	End Method
 	
 	Method ToString:String() Override
+		Local name:String = Self.name
+		For Local i:TInterface = EachIn superInterfaces name :+ ":" + i.GetDeclaration().GetName() Next
 		Return "Interface " + name
 	End Method
 End Type

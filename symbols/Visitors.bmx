@@ -1,9 +1,10 @@
 SuperStrict
 Import "Scope.bmx"
 Import "../syntax/SyntaxVisitor.bmx"
+Import "../util/GraphUtils.bmx"
 Import BRL.LinkedList
 Import BRL.Map
-
+Import brl.standardio ' TODO: remove again
 
 
 Private
@@ -241,7 +242,61 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 	   in each pass, skip where any dependencies are unresolved
 	   if pass without progress, detect cycles, error on involved types and recover by dropping dependencies
 	End Rem
-	Function Name:String(link:TSyntaxLink)
+	
+	Function GetExplicitDependencies:TSyntaxLink[](link:TSyntaxLink, syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>
+		' does not include Object as an implicit super type or implicit base types of enums
+		' those are declared in BRL.Blitz and guaranteed to already be available
+		Local dependencies:TSyntaxLink[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
+		
+		' outer type
+		If TCodeBlockSyntax(link.GetParentSyntax()) And TTypeDeclarationSyntax(link.GetParent().GetParentSyntax()) Then
+			dependencies :+ [link.GetParent().GetParent()]
+		Else If TTypeDeclarationSyntax(link.GetParentSyntax()) Then
+			dependencies :+ [link.GetParent()]
+		End If
+		
+		' TODO: type parameters
+		
+		' super/base types
+		If TClassDeclarationSyntax(syntax) Then
+			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
+			Assert Not syntax.typeParameters Else "TODO"
+			If syntax.superClass Then dependencies :+ [link.FindChild(syntax.superClass)]
+			If syntax.superInterfaces Then
+				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
+				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
+					If e.type_ Then dependencies :+ [superInterfacesLink.FindChild(e).FindChild(e.type_)]
+				Next
+			End If
+		Else If TStructDeclarationSyntax(syntax) Then
+			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
+			Assert Not syntax.typeParameters Else "TODO"
+		Else If TInterfaceDeclarationSyntax(syntax) Then
+			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
+			Assert Not syntax.typeParameters Else "TODO"
+			If syntax.superInterfaces Then
+				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
+				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
+					If e.type_ Then dependencies :+ [superInterfacesLink.FindChild(e).FindChild(e.type_)]
+				Next
+			End If
+		Else If TEnumDeclarationSyntax(syntax) Then
+			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
+			If syntax.baseType Then dependencies :+ [link.FindChild(syntax.baseType)]
+		Else
+			RuntimeError "Missing case"
+		End If
+		Return dependencies
+	End Function
+	
+	Function GetParentCodeBlockScope:TScope(link:TSyntaxLink, scopes:TMap)
+		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
+		Local scope:TScope = TScope(scopes[link.GetParent()])
+		Assert scope Else "Missing scope"
+		Return scope
+	End Function
+	
+	Function GetName:String(link:TSyntaxLink)
 		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
 		If TClassDeclarationSyntax(syntax) Then
 			Return TClassDeclarationSyntax(syntax).name.identifier.lexerToken.value
@@ -256,236 +311,71 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 		End If
 	End Function
 	
-	Local declarations:TList = New TList'<TTypeDeclaration>
-	Local resolutionQueue:TList = New TList'<TSyntaxLink<TTypeDeclarationSyntax>>
+	Type TUnresolvedTypeDeclaration Extends TTypeDeclaration Final
+		Field ReadOnly link:TSyntaxLink
+		Method New(name:String, link:TSyntaxLink)
+			Self.name = name
+			Self.link = link
+		End Method
+		Method GetSyntax:TTypeDeclarationSyntax() Override
+			RuntimeError "no"
+		End Method
+	End Type
 	
+	'Local resolutionQueue:TList = New TList'<TSyntaxLink<TTypeDeclarationSyntax>>
+	
+	' create list of unresolved declarations and insert into scopes if possible
+	Local typeDeclarations:TList = New TList'<TTypeDeclaration>
 	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
 		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
-		' put types without dependencies at the front of the queue
-		If HasAnyExplicitDependencies(syntax) Then resolutionQueue.AddLast link Else resolutionQueue.AddFirst link
+		Local unresolvedDeclaration:TUnresolvedTypeDeclaration = New TUnresolvedTypeDeclaration(GetName(link), link)
+		typeDeclarations.AddLast unresolvedDeclaration
+		GetParentCodeBlockScope(link, scopes).AddDeclaration unresolvedDeclaration
+		' TODO: handle failure to add (duplicate declaration)
 	Next
 	
-	Local passes:Int = 0
-	Repeat
-		Local successes:Int = 0
-		Local queueLink:TLink = resolutionQueue.FirstLink()
-		While queueLink
-			Local link:TSyntaxLink = TSyntaxLink(queueLink.Value())
-			Local declaration:TTypeDeclaration = TryCreateDeclaration(link, declarations, scopes)
-			If declaration Then
-				successes :+ 1
-				declarations.AddLast declaration
-				GetScope(link, scopes).AddDeclaration declaration
-				queueLink.Remove
-			End If
-			queueLink = queueLink.NextLink()
-		Wend
-		passes :+ 1
-		If resolutionQueue.IsEmpty() Then
-			Exit
-		Else If successes = 0 Then
-			Local a:Object[] = declarations.ToArray()
-			Local q:Object[] = resolutionQueue.ToArray()
-			RuntimeError "TODO: error: missing or circular dependency"
-			For Local link:TSyntaxLink = EachIn resolutionQueue
-				'Print "~t" + Name(link)
-			Next
-			' TODO
-		End If
-	Forever
-	
-	Function TryCreateDeclaration:TTypeDeclaration(link:TSyntaxLink, existingDeclarations:TList, scopes:TMap)'<TTypeDeclarationSyntax>'<TTypeDeclaration>'<TSyntaxLink, TScope>
+	' create dependency graph
+	Local graphNodes:TList = New TList'<TGraphNode>
+	Local graphNodeMap:TMap = New TMap'<TSyntaxLink, TGraphNode>
+	Local typeDeclarationListLink:TLink = typeDeclarations.FirstLink()
+	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
+		Local node:TGraphNode = New TGraphNode(typeDeclarationListLink.Value())
+		graphNodes.AddLast node
+		graphNodeMap[link] = node
+		typeDeclarationListLink = typeDeclarationListLink.NextLink()
+	Next
+	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
 		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
-		Assert syntax Else "Wrong syntax link type"
-		If TClassDeclarationSyntax(syntax) Then
-			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			
-			Local superClassDeclaration:TClassDeclaration
-			If syntax.superClass Then
-				Local dependencyDeclaration:TTypeDeclaration = ResolveDependency(GetScope(link, scopes), syntax.superClass, existingDeclarations)
-				If dependencyDeclaration Then
-					superClassDeclaration = TClassDeclaration(dependencyDeclaration)
-					If Not superClassDeclaration Then
-						RuntimeError "TODO: error: wrong kind of type"
-					End If
-				Else
-					Return Null ' cannot resolve (yet?)
-				End If
-			End If
-			
-			Local superInterfaceDeclarations:TInterfaceDeclaration[]
-			If syntax.superInterfaces Then
-				superInterfaceDeclarations = New TInterfaceDeclaration[syntax.superInterfaces.elements.length]
-				For Local e:Int = 0 Until syntax.superInterfaces.elements.length
-					Local superInterfaceSyntax:TTypeSyntax = syntax.superInterfaces.elements[e].type_
-					If superInterfaceSyntax Then
-						Local dependencyDeclaration:TTypeDeclaration = ResolveDependency(GetScope(link, scopes), superInterfaceSyntax, existingDeclarations)
-						If dependencyDeclaration Then
-							Local superInterfaceDeclaration:TInterfaceDeclaration = TInterfaceDeclaration(dependencyDeclaration)
-							If superInterfaceDeclaration Then
-								superInterfaceDeclarations[e] = superInterfaceDeclaration
-							Else
-								RuntimeError "TODO: error: wrong kind of type"
-							End If
-						Else
-							Return Null ' cannot resolve (yet?)
-						End If
-					End If
-				Next
-			End If
-			
-			Assert Not syntax.typeParameters Else "TODO"
-			
-			Local superClass:TClass
-			Local superInterfaces:TInterface[]
-			If superClassDeclaration Then superClass = New TClass(syntax.superClass, superClassDeclaration)
-			For Local i:Int = 0 Until superInterfaceDeclarations.length
-				If superInterfaceDeclarations[i] Then superInterfaces :+ [New TInterface(syntax.superInterfaces.elements[i].type_, superInterfaceDeclarations[i])]
-			Next
-			Local declaration:TClassDeclaration = New TClassDeclaration(syntax, superClass, superInterfaces)
-			Return declaration
-		Else If TStructDeclarationSyntax(syntax) Then
-			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			
-			Assert Not syntax.typeParameters Else "TODO"
-			
-			Local declaration:TStructDeclaration = New TStructDeclaration(syntax)
-			Return declaration
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			
-			Local superInterfaceDeclarations:TInterfaceDeclaration[]
-			If syntax.superInterfaces Then
-				superInterfaceDeclarations = New TInterfaceDeclaration[syntax.superInterfaces.elements.length]
-				For Local e:Int = 0 Until syntax.superInterfaces.elements.length
-					Local superInterfaceSyntax:TTypeSyntax = syntax.superInterfaces.elements[e].type_
-					If superInterfaceSyntax Then
-						Local dependencyDeclaration:TTypeDeclaration = ResolveDependency(GetScope(link, scopes), superInterfaceSyntax, existingDeclarations)
-						If dependencyDeclaration Then
-							Local superInterfaceDeclaration:TInterfaceDeclaration = TInterfaceDeclaration(dependencyDeclaration)
-							If superInterfaceDeclaration Then
-								superInterfaceDeclarations[e] = superInterfaceDeclaration
-							Else
-								RuntimeError "TODO: error: wrong kind of type"
-							End If
-						Else
-							Return Null ' cannot resolve (yet?)
-						End If
-					End If
-				Next
-			End If
-			
-			Assert Not syntax.typeParameters Else "TODO"
-			
-			Local superInterfaces:TInterface[]
-			For Local i:Int = 0 Until superInterfaceDeclarations.length
-				If superInterfaceDeclarations[i] Then superInterfaces :+ [New TInterface(syntax.superInterfaces.elements[i].type_, superInterfaceDeclarations[i])]
-			Next
-			Local declaration:TInterfaceDeclaration = New TInterfaceDeclaration(syntax, superInterfaces)
-			Return declaration
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			
-			Local baseTypeDeclaration:TStructDeclaration
-			If syntax.baseType Then
-				Local dependencyDeclaration:TTypeDeclaration = ResolveDependency(GetScope(link, scopes), syntax.baseType, existingDeclarations)
-				If dependencyDeclaration Then
-					If syntax.baseType Then
-						baseTypeDeclaration = TStructDeclaration(dependencyDeclaration)
-						If Not baseTypeDeclaration Then
-							RuntimeError "TODO: error: wrong kind of type"
-						End If
-					End If
-				Else
-					Return Null ' cannot resolve (yet?)
-				End If
-			End If
-			
-			Local baseType:TStruct
-			If baseTypeDeclaration Then baseType = New TStruct(syntax.baseType, baseTypeDeclaration)
-			Local hasFlags:Int = syntax.flagsKeyword <> Null
-			Local declaration:TEnumDeclaration = New TEnumDeclaration(syntax, baseType, hasFlags)
-			Return declaration
-		Else
-			RuntimeError "Missing case"
-		End If
-		
-		Function ResolveDependency:TTypeDeclaration(lookupScope:TScope, dependencySyntax:TTypeSyntax, existingDeclarations:TList)'<TTypeDeclaration>
-			If Not dependencySyntax.base Then RuntimeError "TODO: error"
-			If dependencySyntax.marshallingModifier Then RuntimeError "TODO: error"
-			Assert Not dependencySyntax.typeArguments Else "TODO"
-			If dependencySyntax.suffixes Then RuntimeError "TODO: error"
-			
-			'TODO: proper lookup, this is just for testing
-			Local n:TQualifiedNameSyntax = TQualifiedNameTypeBaseSyntax(dependencySyntax.base).name
-			Local d:IDeclaration[] = lookupScope.LookUpDeclarationWIP(n.parts[n.parts.length - 1].identifier.lexerToken.value.ToLower(), False)
-			If Not d Then
-				Return Null
-			Else If d.length > 1 Then
-				RuntimeError "TODO: error: ambiguous"
-			Else If TTypeDeclaration(d[0]) Then
-				Return TTypeDeclaration(d[0])
+		Local explicitDependencyLinks:TSyntaxLink[] = GetExplicitDependencies(link, syntax)
+		Local edges:TGraphNode[explicitDependencyLinks.length]
+		For Local d:Int = 0 Until explicitDependencyLinks.length
+			Local dependencyLink:TSyntaxLink = explicitDependencyLinks[d]
+			If TTypeDeclarationSyntax(dependencyLink.GetSyntaxOrSyntaxToken()) Then
+				' create edge link->dependencyLink
+				edges[d] = TGraphNode(graphNodeMap[dependencyLink])
+			Else If TTypeSyntax(dependencyLink.GetSyntaxOrSyntaxToken()) Then
+				' TODO: check before doing these casts:
+				Local dependencyNamePartSyntaxes:TQualifiedNamePartSyntax[] = TQualifiedNameTypeBaseSyntax(TTypeSyntax(dependencyLink.GetSyntaxOrSyntaxToken()).base).name.parts
+				Function PartStr:String(s:TQualifiedNamePartSyntax) Return s.identifier.lexerToken.value End Function
+				Local dependencyDeclarations:IDeclaration[] = GetParentCodeBlockScope(link, scopes).LookUpDeclarationWIP(PartStr(dependencyNamePartSyntaxes[0]).ToLower(), False)
+				Assert dependencyDeclarations.length = 1 Else "wtf"
+				' TODO: handle length = 0 (dependency doesnt exist)
+				' look up dummy declaration and then create edge
+				edges[d] = TGraphNode(graphNodeMap[TUnresolvedTypeDeclaration(dependencyDeclarations[0]).link])
 			Else
-				RuntimeError "TODO: error: not a type declaration"
+				RuntimeError "Missing case"
 			End If
-		End Function
-	End Function
-	
-	Function HasAnyExplicitDependencies:Int(syntax:TTypeDeclarationSyntax)
-		' TODO: type parameters
-		If TClassDeclarationSyntax(syntax) Then
-			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			Return syntax.superClass Or syntax.superInterfaces
-		Else If TStructDeclarationSyntax(syntax) Then
-			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			Return False
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			Return syntax.superInterfaces <> Null
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			Return syntax.baseType <> Null
-		Else
-			RuntimeError "Missing case"
-		End If
-	End Function
-	
-	Rem
-	Function ExplicitDependencies:TTypeSyntax[](syntax:TTypeDeclarationSyntax)
-		' does not include Object as an implicit super type or implicit base types of enums
-		' since those are declared in BRL.Blitz and guaranteed to already be available
-		' TODO: type parameters
-		Local dependencies:TTypeSyntax[]
-		If TClassDeclarationSyntax(syntax) Then
-			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			If syntax.superInterfaces Then
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then dependencies :+ [e.type_]
-				Next
-			End If
-			If syntax.superClass Then dependencies = [syntax.superClass] + dependencies
-		Else If TStructDeclarationSyntax(syntax) Then
-			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			If syntax.superInterfaces Then
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then dependencies :+ [e.type_]
-				Next
-			End If
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			If syntax.baseType Then dependencies = [syntax.baseType]
-		Else
-			RuntimeError "Missing case"
-		End If
-		Return dependencies
-	End Function
-	End Rem
+		Next
+		TGraphNode(graphNodeMap[link]).edges = edges
+	Next
+	Local sccs:TList = TopologicalSort(graphNodes) '<TList<TGraphNode>>
+	Print "sccs:"
+	For Local scc:TList = EachIn sccs
+		Local str:String
+		For Local n:TGraphNode = EachIn scc
+			If str Then str :+ " <-> "
+			str :+ TUnresolvedTypeDeclaration(n.obj).GetName()
+		Next
+		Print str
+	Next
 End Function

@@ -124,12 +124,13 @@ Type TTerminatorStack Final
 	
 	Method Pop()
 		Assert stackSize > 0 Else "Cannot pop terminator from empty stack"
-		stack[StackSize - 1] = Null
+		stack[stackSize - 1] = Null
 		stackSize :- 1
 	End Method
 	
 	Method Contains:Int(terminatorKind:TTokenKind)
-		For Local kinds:TTokenKind[] = EachIn stack
+		For Local k:Int = stackSize Until 0 Step -1
+			Local kinds:TTokenKind[] = stack[k - 1]
 			For Local kind:TTokenKind = EachIn kinds
 				If kind = terminatorKind Then Return True
 			Next

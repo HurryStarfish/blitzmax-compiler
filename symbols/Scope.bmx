@@ -24,8 +24,29 @@ Type TScope Final
 			Local existingOverloads:IOverloadableDeclaration[] = IOverloadableDeclaration[](declarations[keyStr])
 			declarations[keyStr] = existingOverloads + [declaration]
 		Else
-			Assert Not declarations.Contains(keyStr) Else "Scope already contains a symbol with this name"
+			Assert Not declarations.Contains(keyStr) Else "Scope already contains a declaration with this key"
 			declarations[keyStr] = declaration
+		End If
+	End Method
+	
+	Method RemoveDeclaration(declaration:IDeclaration)
+		Local keyStr:String = New SSymbolKey(declaration).ToString()
+		If IOverloadableDeclaration(declaration) Then
+			Local existingOverloads:IOverloadableDeclaration[] = IOverloadableDeclaration[](declarations[keyStr])
+			For Local o:Int = 0 Until existingOverloads.length
+				If existingOverloads[o] = declaration Then
+					If existingOverloads.length = 1 Then
+						declarations.Remove(keyStr)
+					Else
+						declarations[keyStr] = existingOverloads[..o] + existingOverloads[o + 1..]
+					End If
+					Return
+				End If
+			Next
+			Assert False Else "Scope does not contain a declaration with this key"
+		Else
+			Assert declarations.Contains(keyStr) Else "Scope does not contain a declaration with this key"
+			declarations.Remove(keyStr)
 		End If
 	End Method
 	
@@ -47,7 +68,31 @@ Type TScope Final
 	'Method GetSymbolForName:TNamedSymbol(name:String) ' returns null if not found
 	'	Return TNamedSymbol(symbols[(name)])
 	'End Method
+	Rem
+	Method LookUpDeclaration:IDeclaration[](key:SSymbolKey, referenceLocation:???)
+		' TODO: account for visibility
+		' TODO: report error for locals if code location of declaration is after reference
+		' ^ both of these need referenceLocation
+		Return LookUpDeclaration(key, )
+	End Method
 	
+	Private
+	Method LookUpDeclaration:IDeclaration[](key:SSymbolKey, includeLocals:Int)
+		Local value:Object = declarations[key.ToString()]
+		If value Then
+			If IDeclaration(value) Then
+				If Not (TLocalDeclaration(value) And Not includeLocals) Then Return [IDeclaration(value)]
+			Else If IOverloadableDeclaration[](value) Then
+				Return IOverloadableDeclaration[](value)
+			Else
+				RuntimeError "Missing case"
+			End If
+		Else
+			If parent Then Return parent.LookUpDeclaration(key, includeLocals And inheritsLocalsFromParent) Else Return Null
+		End If
+	End Method
+	End Rem
+	Public
 	Method ToString:String() Override
 		Local str:String
 		For Local o:Object = EachIn declarations.Values()

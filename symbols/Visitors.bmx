@@ -236,95 +236,35 @@ End Type
 
 
 Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<TTypeDeclaration>'<TSyntaxLink<TTypeDeclarationSyntax>>'<TSyntaxLink, TScope>
-	' creates declarations and inserts them into scopes
-	Rem
-	-> place in queue, try to resolve in arbitrary number of passes
-	   in each pass, skip where any dependencies are unresolved
-	   if pass without progress, detect cycles, error on involved types and recover by dropping dependencies
-	End Rem
+	' creates declarations for all given syntax links and inserts them into scopes
+	' since these declarations have references to all other declarations they have dependencies on,
+	' this requires the would-be declarations to be topologically sorted before they can be created
 	
-	Function GetExplicitDependencies:TSyntaxLink[](link:TSyntaxLink, syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>
-		' does not include Object as an implicit super type or implicit base types of enums
-		' those are declared in BRL.Blitz and guaranteed to already be available
-		Local dependencies:TSyntaxLink[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
+	' such dependencies are:
+	' - super types
+	' - enum base types
+	' - outer types (of types declared either directly inside other types, or locally inside callables)
+	' - NOT type arguments of super/base types (because relationships such as such as
+	'  "Type A Extends B<A>" must be allowed)
+	' - NOT types referenced in generic constraints (because in that case, the dependency is that of
+	'   the type parameter, not of the type having the type parameter)
+	
+	' TODO: add type parameters as their own declarations
+	' - the generic type depends on its type parameters, so that the parameter declarations can be
+	'   referenced by the generic declaration
+	' TODO: add dependencies for generic super/base types (the dependency is on the type created by
+	' applying the type arguments; this type will in turn have dependencies on the generic type it
+	' was created from, as well as on all the type argument types - how to handle cycles there?)
+	
+	' imports cannot have cycles, so types in imported compilation units must already have been resolved
+	' but within the same unit, types can depend on each other regardless of scope nesting and code order
+	' hence, this function should only be called once per compilation unit and given all type declaration
+	' syntax links in the unit
 		
-		' outer type
-		If TCodeBlockSyntax(link.GetParentSyntax()) And TTypeDeclarationSyntax(link.GetParent().GetParentSyntax()) Then
-			dependencies :+ [link.GetParent().GetParent()]
-		Else If TTypeDeclarationSyntax(link.GetParentSyntax()) Then
-			dependencies :+ [link.GetParent()]
-		End If
-		
-		' TODO: type parameters
-		
-		' super/base types
-		If TClassDeclarationSyntax(syntax) Then
-			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			If syntax.superClass Then dependencies :+ [link.FindChild(syntax.superClass)]
-			If syntax.superInterfaces Then
-				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then dependencies :+ [superInterfacesLink.FindChild(e).FindChild(e.type_)]
-				Next
-			End If
-		Else If TStructDeclarationSyntax(syntax) Then
-			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			Assert Not syntax.typeParameters Else "TODO"
-			If syntax.superInterfaces Then
-				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then dependencies :+ [superInterfacesLink.FindChild(e).FindChild(e.type_)]
-				Next
-			End If
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			If syntax.baseType Then dependencies :+ [link.FindChild(syntax.baseType)]
-		Else
-			RuntimeError "Missing case"
-		End If
-		Return dependencies
-	End Function
-	
-	Function GetParentCodeBlockScope:TScope(link:TSyntaxLink, scopes:TMap)
-		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
-		Local scope:TScope = TScope(scopes[link.GetParent()])
-		Assert scope Else "Missing scope"
-		Return scope
-	End Function
-	
-	Function GetName:String(link:TSyntaxLink)
-		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
-		If TClassDeclarationSyntax(syntax) Then
-			Return TClassDeclarationSyntax(syntax).name.identifier.lexerToken.value
-		Else If TStructDeclarationSyntax(syntax) Then
-			Return TStructDeclarationSyntax(syntax).name.identifier.lexerToken.value
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Return TInterfaceDeclarationSyntax(syntax).name.identifier.lexerToken.value
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Return TEnumDeclarationSyntax(syntax).name.identifier.lexerToken.value
-		Else
-			RuntimeError "Missing case"
-		End If
-	End Function
-	
-	Type TUnresolvedTypeDeclaration Extends TTypeDeclaration Final
-		Field ReadOnly link:TSyntaxLink
-		Method New(name:String, link:TSyntaxLink)
-			Self.name = name
-			Self.link = link
-		End Method
-		Method GetSyntax:TTypeDeclarationSyntax() Override
-			RuntimeError "no"
-		End Method
-	End Type
-	
 	'Local resolutionQueue:TList = New TList'<TSyntaxLink<TTypeDeclarationSyntax>>
 	
-	' create list of unresolved declarations and insert into scopes if possible
+	' create list of unresolved placeholder declarations and insert into scopes if possible
+	' these will be used for the dependency graph
 	Local typeDeclarations:TList = New TList'<TTypeDeclaration>
 	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
 		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
@@ -358,9 +298,12 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 				Local dependencyNamePartSyntaxes:TQualifiedNamePartSyntax[] = TQualifiedNameTypeBaseSyntax(TTypeSyntax(dependencyLink.GetSyntaxOrSyntaxToken()).base).name.parts
 				Function PartStr:String(s:TQualifiedNamePartSyntax) Return s.identifier.lexerToken.value End Function
 				Local dependencyDeclarations:IDeclaration[] = GetParentCodeBlockScope(link, scopes).LookUpDeclarationWIP(PartStr(dependencyNamePartSyntaxes[0]).ToLower(), False)
-				Assert dependencyDeclarations.length = 1 Else "wtf"
-				' TODO: handle length = 0 (dependency doesnt exist)
-				' look up dummy declaration and then create edge
+				If dependencyNamePartSyntaxes.length > 1 Then
+					RuntimeError "TODO: lookup in more deeply nested scopes"
+				End If
+				Assert dependencyDeclarations.length = 1 Else "TODO: error handling for missing dependency"
+				' TODO: handle length = 0 (dependency doesnt exist (declaration wasnt found))
+				' look up placeholder declaration and then create edge
 				edges[d] = TGraphNode(graphNodeMap[TUnresolvedTypeDeclaration(dependencyDeclarations[0]).link])
 			Else
 				RuntimeError "Missing case"
@@ -368,14 +311,169 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 		Next
 		TGraphNode(graphNodeMap[link]).edges = edges
 	Next
-	Local sccs:TList = TopologicalSort(graphNodes) '<TList<TGraphNode>>
-	Print "sccs:"
-	For Local scc:TList = EachIn sccs
-		Local str:String
-		For Local n:TGraphNode = EachIn scc
-			If str Then str :+ " <-> "
-			str :+ TUnresolvedTypeDeclaration(n.obj).GetName()
+	
+	' create ordered list of strongly connected components from the dependency graph
+	' if any component contains more than one node, it represents a dependency cycle
+	' the list is ordered so that no node has a dependency on a node in a later component, which means
+	' that (if there are no cycles) it describes a valid order to create the actual type declarations in
+	Local stronglyConnectedComponents:TList = TopologicalSort(graphNodes) '<TList<TGraphNode>>
+	
+	DebugOutput stronglyConnectedComponents ' TODO: remove debug output
+	Function DebugOutput(sccs:TList)
+		Print "sccs:"
+		For Local scc:TList = EachIn sccs
+			Local str:String
+			For Local n:TGraphNode = EachIn scc
+				If str Then str :+ " <-> "
+				str :+ TUnresolvedTypeDeclaration(n.obj).GetName()
+			Next
+			Print str
 		Next
-		Print str
-	Next
+	End Function
+	
+	' TODO: create the actual declarations and replace the placeholders
+	
+	Function GetExplicitDependencies:TSyntaxLink[](link:TSyntaxLink, syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>
+		' does not include Object as an implicit super type or implicit base types of enums
+		' those are declared in BRL.Blitz and guaranteed to already be available
+		Local dependencies:TSyntaxLink[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
+		
+		' outer type
+		If TTypeDeclarationSyntax(link.GetParentSyntax()) Then
+			dependencies :+ [link.GetParent()]
+		Else If TCodeBlockSyntax(link.GetParentSyntax()) Then
+			Local parentLink:TSyntaxLink = link.GetParent()
+			While parentLink And TCodeBlockSyntax(parentLink.GetSyntaxOrSyntaxToken())
+				If TTypeDeclarationSyntax(parentLink.GetParentSyntax()) Then
+					dependencies :+ [parentLink.GetParent()]
+					Exit
+				End If
+				parentLink = parentLink.GetParent()
+			Wend
+		End If
+		
+		' TODO: error on direct self-reference (such as "T Extends T"),
+		'       since this is not caught by the cycle detection
+
+		' super/base types
+		If TClassDeclarationSyntax(syntax) Then
+			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
+			If syntax.typeParameters Then
+				RuntimeError "TODO"
+			End If
+			If syntax.superClass Then
+				Local superClassLink:TSyntaxLink = link.FindChild(syntax.superClass)
+				link.FindChild(syntax.superClass)
+				dependencies :+ [superClassLink]
+				' TODO: handle generic super class
+			End If
+			If syntax.superInterfaces Then
+				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
+				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
+					If e.type_ Then
+						Local superInterfaceSyntax:TTypeSyntax = e.type_
+						Local superInterfaceLink:TSyntaxLink = superInterfacesLink.FindChild(e).FindChild(e.type_)
+						dependencies :+ [superInterfaceLink]
+						' TODO: handle generic super interfaces
+					End If
+				Next
+			End If
+		Else If TStructDeclarationSyntax(syntax) Then
+			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
+			If syntax.typeParameters Then
+				RuntimeError "TODO"
+			End If
+			' TODO: handle generic super interfaces
+		Else If TInterfaceDeclarationSyntax(syntax) Then
+			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
+			If syntax.typeParameters Then
+				RuntimeError "TODO"
+			End If
+			If syntax.superInterfaces Then
+				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
+				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
+					If e.type_ Then
+						Local superInterfaceSyntax:TTypeSyntax = e.type_
+						Local superInterfaceLink:TSyntaxLink = superInterfacesLink.FindChild(e).FindChild(e.type_)
+						dependencies :+ [superInterfaceLink]
+						' TODO: handle generic super interfaces
+					End If
+				Next
+			End If
+		Else If TEnumDeclarationSyntax(syntax) Then
+			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
+			If syntax.baseType Then dependencies :+ [link.FindChild(syntax.baseType)]
+			' TODO: handle generic base type
+		Else
+			RuntimeError "Missing case"
+		End If
+		
+		Return dependencies
+		
+		Function GetTypeArgumentDependencies:TSyntaxLink[](typeArgumentListLink:TSyntaxLink)'<TTypeSyntax>[]'<TTypeArgumentListSyntax>
+			' TODO: the type argument can itself have type arguments
+			'       but in that case, the actual dependency is not on the type belonging to the
+			'       type argument's declaration, but on the type produced by applying its own
+			'       type arguments
+			'       e.g. A Extends B<C>
+
+			
+			Local typeListLink:TSyntaxLink = typeArgumentListLink.FindChild(TTypeArgumentListSyntax(typeArgumentListLink.GetSyntaxOrSyntaxToken()).list) '<TTypeListSyntax>
+			Local typeListSyntax:TTypeListSyntax = TTypeListSyntax(typeListLink.GetSyntaxOrSyntaxToken())
+			Local dependencies:TSyntaxLink[]'<TTypeSyntax>[]
+			For Local e:TTypeListElementSyntax = EachIn typeListSyntax.elements
+				Local typeArgumentSyntax:TTypeSyntax = e.type_
+				Local typeArgumentLink:TSyntaxLink = typeListLink.FindChild(e).FindChild(e.type_)
+				
+				' TODO: the type argument can itself have type arguments
+				'       but in that case, the actual dependency is not on the type belonging to the
+				'       type argument's declaration, but on the type produced by applying its own
+				'       type arguments
+				'       e.g. A Extends B<C>
+				If typeArgumentSyntax.typeArguments Then
+					RuntimeError "TODO"
+					'Local typeArgumentTypeArgumentListLink:TSyntaxLink = typeArgumentLink.FindChild(typeArgumentSyntax.typeArguments)
+					'dependencies :+ GetTypeArgumentDependencies(typeArgumentTypeArgumentListLink)
+				End If
+
+				dependencies :+ [typeArgumentLink]
+			Next
+			Return dependencies
+		End Function
+	End Function
+	
+	Function GetParentCodeBlockScope:TScope(link:TSyntaxLink, scopes:TMap)
+		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
+		Local scope:TScope = TScope(scopes[link.GetParent()])
+		Assert scope Else "Missing scope"
+		Return scope
+	End Function
+	
+	Function GetName:String(link:TSyntaxLink)
+		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
+		If TClassDeclarationSyntax(syntax) Then
+			Return TClassDeclarationSyntax(syntax).name.identifier.lexerToken.value
+		Else If TStructDeclarationSyntax(syntax) Then
+			Return TStructDeclarationSyntax(syntax).name.identifier.lexerToken.value
+		Else If TInterfaceDeclarationSyntax(syntax) Then
+			Return TInterfaceDeclarationSyntax(syntax).name.identifier.lexerToken.value
+		Else If TEnumDeclarationSyntax(syntax) Then
+			Return TEnumDeclarationSyntax(syntax).name.identifier.lexerToken.value
+		Else
+			RuntimeError "Missing case"
+		End If
+	End Function
+	
+	Type TUnresolvedTypeDeclaration Extends TTypeDeclaration Final
+		Field ReadOnly link:TSyntaxLink
+		
+		Method New(name:String, link:TSyntaxLink)
+			Self.name = name
+			Self.link = link
+		End Method
+		
+		Method GetSyntax:TTypeDeclarationSyntax() Override
+			RuntimeError "no"
+		End Method
+	End Type
 End Function

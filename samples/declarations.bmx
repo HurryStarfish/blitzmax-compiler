@@ -1,16 +1,27 @@
 SuperStrict
 Framework BRL.Blitz
 
-Type T Implements I
+Type T Implements I'<S<S>>
 	Type U
 	End Type
+	Function F()
+		Function F2()
+			Type UU End Type
+		End Function
+	End Function
 End Type
 
 Type T3 Extends T2 End Type
 Type T2 Extends T3 End Type
 
-Interface I
+Interface I'<TParam>
 End Interface
+
+Struct S
+End Struct
+
+Struct S2
+End Struct
 
 Rem
 Type T1 Extends T2 End Type
@@ -37,6 +48,39 @@ Type N3
 		End Type
 	End Type
 End Type
+End Rem
+
+Rem
+resolve type declarations (may have cycles inside the same compilation unit -> error)
+
+resolve callable declarations (no inference involved)
+
+resolve variable declarations (inference may have cycles)
+-> enqueue like types? or only allow := ininitalizers to refer to declarations further "up" in the code?
+End Rem
+
+Rem
+TODO: test these:
+
+class A : I<X<Y<S>>> {}
+class B : I<Y<X<S>>> {}
+
+interface I<T> {}
+
+class X<T> {}
+class Y<T> {}
+
+class S {}
+
+interface IU<T> where T : IU<SS> {}
+interface IV<T> where T : IW<SS> {}
+interface IW<T> where T : IV<SS> {}
+
+class SS : IU<SS>, IV<SS>, IW<SS> {}
+
+public interface Outer<T> where T : Outer<T>.Inner {
+	public interface Inner {}
+}
 End Rem
 
 Rem

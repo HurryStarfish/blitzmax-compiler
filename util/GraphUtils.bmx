@@ -48,8 +48,8 @@ Public
 Function TopologicalSort:TGraphNode[][](nodes:TGraphNode[])
 	' uses Tarjan's strongly connected components algorithm to calculate a topologically sorted
 	' array containing the strongly connected components of the specified directed graph
-	' every SCC is an array that represents a cycle in the graph (possibly consisting of just a single
-	' node) and appears before any of its successors (that is, others SCCs that it has any edges to)
+	' every SCC is an array that represents a cycle in the graph (consisting of potentially just
+	' a single node) and appears before all of its successors (other SCCs that it has any edges towards)
 	' https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
 	For Local node:TGraphNode = EachIn nodes
 		node.algorithmData = New SAlgorithmData
@@ -101,11 +101,7 @@ Function TopologicalSort:TGraphNode[][](nodes:TGraphNode[])
 End Function
 
 Function TopologicalSort:TList(nodes:TList)'<TList<TGraphNode>>'<TGraphNode>
-	' uses Tarjan's strongly connected components algorithm to calculate a topologically sorted
-	' array containing the strongly connected components of the specified directed graph
-	' every SCC is an array that represents a cycle in the graph (possibly consisting of just a single
-	' node) and appears before any of its successors (that is, others SCCs that it has any edges to)
-	' https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
+	' see array overload for docs; this one operates on lists
 	For Local node:TGraphNode = EachIn nodes
 		node.algorithmData = New SAlgorithmData
 	Next

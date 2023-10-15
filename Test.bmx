@@ -149,6 +149,132 @@ End Function
 
 
 
+Rem
+Type TTypeResolutionVisitor Extends TSyntaxVisitor
+	Field types:TMap = New TMap'<ISyntax, TType>
+	
+	Method VisitBottomUp(link:TSyntaxLink, s:TNumericLiteralExpressionSyntax)
+		Local type_:TTypeSymbol
+		Select s.value.kind
+			Case TTokenKind.IntLiteral, TTokenKind.HexIntLiteral, TTokenKind.BinIntLiteral type_ = TType.Int_
+			Case TTokenKind.FloatLiteral type_ = TType.Float_
+			Default Throw "Missing case"
+		End Select
+		If s.type_ Then
+			type_ = TypeSyntaxToType(s.type_)
+		End If
+		types.Insert s, type_
+	End Method
+	
+	Method VisitBottomUp(link:TSyntaxLink, s:TStringLiteralExpressionSyntax)
+		Local type_:TType = TType.String_
+		If s.type_ Then
+			type_ = TypeSyntaxToType(s.type_)
+		End If
+		types.Insert s, TType.String_
+	End Method
+	
+	Method VisitBottomUp(link:TSyntaxLink, s:TSumExpressionSyntax)
+		Local lhsType:String = String types[s.lhs]
+		Local rhsType:String = String types[s.rhs]
+		'types.Insert s, lhsType + "+" + rhsType
+	End Method
+	
+	Function TypeSyntaxToType:TType(syntax:TTypeSyntax)
+		Local type_:TType = TypeBaseSyntaxToType(syntax.base)
+		' TODO: marshallingModifier
+		' TODO: typeArguments
+		For Local suffixSyntax:TTypeSuffixSyntax = EachIn syntax.suffixes
+			type_ = TypeSuffixSyntaxToType(type_, suffixSyntax)
+		Next
+		Return type_
+
+		Function TypeBaseSyntaxToType:TType(syntax:TTypeBaseSyntax) ' nullable param
+			If Not syntax Then Return TType.Void
+			If TQualifiedNameTypeBaseSyntax(syntax) Then Return QualifiedNameTypeBaseSyntaxToType(TQualifiedNameTypeBaseSyntax(syntax))
+			If TKeywordTypeBaseSyntax(syntax) Then Return KeywordTypeBaseSyntaxToType(TKeywordTypeBaseSyntax(syntax))
+			If TSigilTypeBaseSyntax(syntax) Then Return SigilTypeBaseSyntaxToType(TSigilTypeBaseSyntax(syntax))
+			Throw "Missing case"
+			
+			Function QualifiedNameTypeBaseSyntaxToType:TType(syntax:TQualifiedNameTypeBaseSyntax)
+				Throw "TODO"
+			End Function
+			
+			Function KeywordTypeBaseSyntaxToType:TType(syntax:TKeywordTypeBaseSyntax)
+				Select syntax.keyword.kind
+					Case TTokenKind.Byte_      Return TType.Byte_
+					Case TTokenKind.Short_     Return TType.Short_
+					Case TTokenKind.Int_       Return TType.Int_
+					Case TTokenKind.UInt_      Return TType.UInt_
+					Case TTokenKind.Long_      Return TType.Long_
+					Case TTokenKind.ULong_     Return TType.ULong_
+					'Case TTokenKind.Size_T_    Return TType.
+					Case TTokenKind.Float_     Return TType.Float_
+					Case TTokenKind.Double_    Return TType.Double_
+					Case TTokenKind.String_    Return TType.String_
+					Case TTokenKind.Object_    Return TType.Object_
+					'Case TTokenKind.LParam_    Return TType.
+					'Case TTokenKind.WParam_    Return TType.
+					'Case TTokenKind.Float64_   Return TType.
+					'Case TTokenKind.Float128_  Return TType.
+					'Case TTokenKind.Double128_ Return TType.
+					'Case TTokenKind.Int128_    Return TType.
+					Default Throw "Missing case"
+				End Select
+			End Function
+			
+			Function SigilTypeBaseSyntaxToType:TType(syntax:TSigilTypeBaseSyntax)
+				Select syntax.sigil.kind
+					Case TTokenKind.ByteSigil   Return TType.Byte_
+					Case TTokenKind.IntSigil    Return TType.Int_
+					Case TTokenKind.FloatSigil  Return TType.Float_
+					Case TTokenKind.DoubleSigil Return TType.Double_
+					Case TTokenKind.StringSigil Return TType.String_
+					Default Throw "Missing case"
+				End Select
+			End Function
+		End Function
+		
+		Function TypeSuffixSyntaxToType:TType(baseType:TType, syntax:TTypeSuffixSyntax)
+			If TPtrTypeSuffixSyntax(syntax) Then Return PtrTypeSuffixSyntaxToType(baseType, TPtrTypeSuffixSyntax(syntax))
+			If TVarTypeSuffixSyntax(syntax) Then Return VarTypeSuffixSyntaxToType(baseType, TVarTypeSuffixSyntax(syntax))
+			If TArrayTypeSuffixSyntax(syntax) Then Return ArrayTypeSuffixSyntaxToType(baseType, TArrayTypeSuffixSyntax(syntax))
+			If TCallableTypeSuffixSyntax(syntax) Then Return CallableTypeSuffixSyntaxToType(baseType, TCallableTypeSuffixSyntax(syntax))
+			Throw "Missing case"
+			
+			Function PtrTypeSuffixSyntaxToType:TType(baseType:TType, syntax:TPtrTypeSuffixSyntax)
+				Throw "TODO"'Return baseType.ToPtrType()
+			End Function
+			
+			Function VarTypeSuffixSyntaxToType:TType(baseType:TType, syntax:TVarTypeSuffixSyntax)
+				Throw "TODO"'Return baseType.ToVarType()
+			End Function
+			
+			Function ArrayTypeSuffixSyntaxToType:TType(baseType:TType, syntax:TArrayTypeSuffixSyntax)
+				Throw "TODO"
+			End Function
+			
+			Function CallableTypeSuffixSyntaxToType:TType(baseType:TType, syntax:TCallableTypeSuffixSyntax)
+				Local parameterTypes:TType[]
+				Local parameterDeclaratorListElements:TVariableDeclaratorListElementSyntax[] = syntax.parameterDeclaration.declarators.elements
+				For Local element:TVariableDeclaratorListElementSyntax = EachIn parameterDeclaratorListElements
+					parameterTypes :+ [TypeSyntaxToType(element.declarator.type_)]
+				Next
+				Throw "TODO"'Return baseType.ToFunctionType(parameterTypes)
+			End Function
+
+		End Function
+	End Function
+End Type
+End Rem
+Type TPrintSemanticVisitor Extends TSyntaxVisitor
+	Method VisitTopDown(link:TSyntaxLink, s:ISyntax)
+		'StandardIOStream.WriteString SyntaxToString(s)
+	End Method
+End Type
+
+
+
 Function CreateLexer:ILexer(filePath:String)
 	Return New TLexer(filePath)
 End Function

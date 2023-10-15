@@ -1,0 +1,6 @@
+https://ericlippert.com/2012/06/08/red-green-trees/
+https://github.com/KirillOsenkov/Bliki/wiki/Roslyn-Immutable-Trees
+
+https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.isymbol?view=roslyn-dotnet-4.3.0
+
+https://route2roslyn.netlify.app/symbols-for-dummies/

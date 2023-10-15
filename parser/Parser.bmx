@@ -1953,6 +1953,82 @@ Type TParser Implements IParser Final
 		Forever
 	End Method
 	
+	' alternative implementation(?), see also ParseTypeApplicationExpression   v
+	' the idea is to look ahead to decide what to parse as relational and what to parse as a type
+	' application, so that in case of an error, the result (error message and recovery) will be
+	' as close as possible to the intended meaning
+	Rem
+	Method ParseRelationalCompatibleExpression:IRelationalCompatibleExpressionSyntax()
+		Local lhs:IRelationalCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+		If Not lhs Then Return Null
+		'a<b>
+		'a<b<c>
+		
+		' ideas:
+		' - parse gen as postfix, in case of error abort only if gt is missing or there is an And or Or token inside
+		' - parse relational, in case of lt scan ahead for gt taking care to balance parens - BAD (unbounded lookahead)
+		' - 
+		
+		Local state:SParserState
+		Local unmatchedLt:Int = 0
+		Repeat
+			Local opIsLt:Int = currentToken.Kind() = TTokenKind.Lt
+			Local opIsGt:Int = currentToken.Kind() = TTokenKind.Gt
+			If opIsLt Then
+				If unmatchedLt = 0 Then
+					' when encountering multiple lt, keep the state from before the first one
+					' when encountering any other operator except gt, forget about the lt
+					state = SaveState()
+				End If
+				unmatchedLt :+ 1
+			Else If Not opIsGt
+				unmatchedLt = 0
+			End If
+			
+			Local op:TOperatorSyntax
+			If Not op Then op = ParseOperator([TTokenKind.Eq])
+			If Not op Then op = ParseOperator([TTokenKind.Neq])
+			If Not op Then op = ParseOperator([TTokenKind.Lt])
+			If Not op Then op = ParseOperator([TTokenKind.Gt])
+			If Not op Then op = ParseOperator([TTokenKind.Leq])
+			If Not op Then op = ParseOperator([TTokenKind.Geq])
+			If op Then
+				If opIsGt And unmatchedLt Then
+					' type arguments can only appear after an identifier
+					Local expressionBeforeLt:IExpressionSyntax = lhs
+					For Local i:Int = 1 To pendingLt
+						expressionBeforeLt = TRelationalExpressionSyntax(expressionBeforeLt).lhs
+					Next
+					If (TNameExpressionSyntax(expressionBeforeLt) Or TMemberAccessExpressionSyntax(expressionBeforeLt)) Then
+						RestoreState state
+						Local typeApplicationExpression:TTypeApplicationExpressionSyntax = ParseTypeApplicationExpression(IPostfixCompatibleExpressionSyntax(expressionBeforeLt))
+						If typeApplicationExpression Then
+							lhs = ParsePostfixCompatibleExpression(typeApplicationExpression)
+							'state = SaveState()
+							unmatchedLt = False
+							Continue
+						Else
+							Throw "what now"
+						End If
+					End If
+				End If
+				
+				Local rhs:IUnionCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+				If Not rhs Then
+					ReportError "Expected expression"
+					rhs = GenerateMissingExpression()
+				End If
+				
+				lhs = New TRelationalExpressionSyntax(lhs, op, rhs)
+				
+				'previousOpWasLt = opIsLt
+			Else
+				Return lhs
+			End If
+		Forever
+	End Method
+	End Rem
+	
 	Method ParseUnionCompatibleExpression:IUnionCompatibleExpressionSyntax()
 		Local lhs:IUnionCompatibleExpressionSyntax = ParseIntersectionCompatibleExpression()
 		If Not lhs Then Return Null
@@ -2172,10 +2248,84 @@ Type TParser Implements IParser Final
 		Return New TCallExpressionSyntax(arg, callOperator)
 	End Method
 	
-	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int) ' backtracks
+	' older implementation   v
+	Rem
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax) ' backtracks
 		If Not (TNameExpressionSyntax(arg) Or TMemberAccessExpressionSyntax(arg)) Then
 			Return Null ' type arguments can only appear after an identifier
 		End If
+		
+		Local state:SParserState = SaveState()
+		
+		Local errorsBefore:Int = parseErrors.Count()
+		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		If Not typeApplicationOperator Then Return Null
+		Local errorsAfter:Int = parseErrors.Count()
+		If errorsBefore <> errorsAfter Then
+			RestoreState state
+			Return Null
+		End If
+		' TODO: if there are errors while parsing the type list, skip ahead to the gt;
+		'       if the gt is found, examine the token after it as if it was successful
+		'       this way, expressions like "a<b & c>(d)" will be parsed as generic
+		'       problem: "a<b And c>(d)" and "a<b Or c>(d)" should not be parsed as a type list
+		'       idea: if the if the type list parse fails, skip ahead to the gt, using And and Or
+		'             as additional terminators; we do not need to be concerned about skipping
+		'             lt tokens during this, because the goal is to consider anything that looks
+		'             like a chain of comparisons as invalid
+		'       problem: "a < b(x > (y + z))" should not be parsed as a generic
+		
+		' TODO: do not do this when parsing a call statement (with or without parentheses)
+		Function CurrentTokenCanAppearAfterTypeArgumentList:Int(self_:TParser)
+			Select self_.currentToken.Kind()
+				' prefix operators, excluding the ones that double as binary operators
+				Case TTokenKind.Not_, TTokenKind.Asc_, TTokenKind.Chr_, TTokenKind.Len_, TTokenKind.SizeOf_, TTokenKind.Varptr_
+					Return False
+				Case TTokenKind.LBracket
+					???
+				Case TTokenKind.LParen
+					Return True
+				Default
+					'Local state:SParserState = self_.SaveState()
+					' type keywords
+					If self_.ParseKeywordTypeBase() Then
+						'self_.RestoreState state
+						Return False
+					End If
+					' starting tokens of primary expressions, excluding lparen
+					If self_.ParsePrimaryExpression() Then
+						'self_.RestoreState state
+						Return False
+					End If
+					Return True
+			End Select
+		End Function
+		If Not CurrentTokenCanAppearAfterTypeArgumentList(Self) Then
+			RestoreState state
+			Return Null
+		End If
+		
+		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
+	End Method
+	End Rem
+	Rem
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax) ' always succeeds
+		Assert TNameExpressionSyntax(arg) Or TMemberAccessExpressionSyntax(arg) Else "???"
+		
+		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		
+		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
+	End Method
+	End Rem
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int) ' backtracks
+		If Not CanBeFollowedByTypeApplication(arg) Then Return Null
+		Function CanBeFollowedByTypeApplication:Int(arg:IExpressionSyntax)
+			' type arguments can only be applied to names, not arbitrary expressions
+			If TNameExpressionSyntax(arg) Then Return True
+			If TMemberAccessExpressionSyntax(arg) Then Return True
+			If TParenExpressionSyntax(arg) Then Return CanBeFollowedByTypeApplication(TParenExpressionSyntax(arg).expression)
+			Return False
+		End Function
 		
 		If currentToken.Kind() <> TTokenKind.Lt Then Return Null
 		

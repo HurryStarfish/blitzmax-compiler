@@ -4,7 +4,7 @@ Import "WeakReference.c"
 
 
 
-Private ' <- this doesn't work atm (bug with generics)
+Private ' <- this doesn't work if TWeakReference is generic (bug with generics)
 Extern
 	Function bbRegisterWeakPtr(weakPtr:Byte Ptr Var, obj:Object)
 	Function bbUnregisterWeakPtr(weakPtr:Byte Ptr Var)
@@ -12,7 +12,7 @@ Extern
 End Extern
 
 Public
-Type TWeakReference Final
+Type TWeakReference Final'<T>
 	Private
 	Field objPtr:Byte Ptr
 	
@@ -30,7 +30,7 @@ Type TWeakReference Final
 		bbUnregisterWeakPtr objPtr
 	End Method
 	
-	Method Get:Object()
+	Method Get:Object()'T
 		Return bbWeakPtrGetObject(objPtr)
 	End Method
 End Type

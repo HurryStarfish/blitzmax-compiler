@@ -20,39 +20,40 @@ Enum EAllowedDeclaratorCount
 	Any
 End Enum
 
-Function GetScope:TScope(link:TSyntaxLink, scopes:TMap)'<TSyntaxLink, TScope>
-	' gets the scope for this link, or, if none present, the enclosing scope
+Function GetScope:TScope(syntax:ISyntax, scopes:TMap)'<ISyntax, TScope>
+	' gets the scope for this node, or, if none present, the enclosing scope
 	Repeat
-		Local scope:TScope = TScope(scopes[link])
+		Local scope:TScope = TScope(scopes[syntax])
 		If scope Then Return scope
-		link = link.GetParent()
-		If Not link Then Return Null
+		syntax = syntax.Parent()
+		If Not syntax Then Return Null
 	Forever
 End Function
 
 Public
 Type TCreateScopesVisitor Extends TSyntaxVisitor Final
-	Field ReadOnly scopes:TMap = New TMap'<TSyntaxLink, TScope>
+	Field ReadOnly scopes:TMap = New TMap'<ISyntax, TScope>
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TCodeBlockSyntax)
-		Local scope:TScope = TScope(scopes[link])
-		Local parentSyntax:ISyntax = link.GetParentSyntax()
+	Method VisitTopDown(syntax:TCodeBlockSyntax)
+		Local scope:TScope = TScope(scopes[syntax])
+		Local parentSyntax:ISyntax = syntax.Parent()
 		Local inheritsLocals:Int = IStatementSyntax(parentSyntax) Or ..
 		                           TIfBranchSyntax(parentSyntax) Or ..
 		                           TSelectBranchSyntax(parentSyntax) Or ..
 		                           TTryBranchSyntax(parentSyntax) Or ..
-		                           TIncludeDirectiveSyntax(link.GetParent().GetParentSyntax()) And TIncludeDirectiveSyntax(link.GetParent().GetParentSyntax()).body.block = syntax
-		scope = New TScope(GetScope(link.GetParent(), scopes), inheritsLocals)
-		scopes[link] = scope
+		                           TIncludeDirectiveSyntax(parentSyntax.Parent()) And TIncludeDirectiveSyntax(parentSyntax.Parent()).Body().Block() = syntax
+		scope = New TScope(GetScope(parentSyntax, scopes), inheritsLocals)
+		scopes[syntax] = scope
 		' TODO
 	End Method
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TEnumDeclarationSyntax)
-		scopes[link] = New TScope(GetScope(link.GetParent(), scopes), False)
+	Method VisitTopDown(syntax:TEnumDeclarationSyntax)
+		scopes[syntax] = New TScope(GetScope(syntax.Parent(), scopes), False)
 	End Method
 End Type
 
 Type TCollectTypeDeclarationSyntaxesVisitor Extends TSyntaxVisitor Final
+	' see CreateTypeDeclarations
 	' type declarations refer to each other; creating a declaration requires the declarations
 	' for all its super/base types to be created first
 	' these dependencies can span across compilation units, can span across scopes even within the same
@@ -69,113 +70,112 @@ Type TCollectTypeDeclarationSyntaxesVisitor Extends TSyntaxVisitor Final
 	'   - resolving dependencies requires being able to resolve fully or partially qualified names
 	' - if any types do not conform to the above restriction, an error must be reported and the
 	'   problematic dependencies be dropped in order to recover
-	Field ReadOnly typeDeclarationSyntaxLinks:TList = New TList'<TSyntaxLink<TTypeDeclarationSyntax>>
+	Field ReadOnly typeDeclarationSyntaxes:TList = New TList'<TTypeDeclarationSyntax>
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TTypeDeclarationSyntax)
-		typeDeclarationSyntaxLinks.AddLast link
+	Method VisitTopDown(syntax:TTypeDeclarationSyntax)
+		typeDeclarationSyntaxes.AddLast syntax
 	End Method
 End Type
 
 Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
-	Field ReadOnly scopes:TMap = New TMap'<TSyntaxLink, TScope>
+	Field ReadOnly scopes:TMap = New TMap'<ISyntax, TScope>
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TVariableDeclarationSyntax)
-		' all cases of declarations that aren't direct children of a code block
+	Method VisitTopDown(syntax:TVariableDeclarationSyntax)
+		' all declarations that aren't direct children of a code block
 		' (callable parameters, For loop counters, Catch exception variables) should
-		' be handled by their parent statements; since these are top-down visits, that
-		' means they have already been handled when we get here
-		If Not TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Then Return
+		' be handled by their parent statements (see other visit methods below); since
+		' these are top-down visits, that means they have already been handled when we get here
+		If Not TCodeBlockSyntax(syntax.Parent()) Then Return
 		
-		Local scope:TScope = GetParentCodeBlockScope(link)
+		Local scope:TScope = GetParentCodeBlockScope(syntax)
 		' declarations without a declaration keyword are never direct children of a code block
 		AddSymbolsForDeclaratorsToScope syntax, scope, True, EAllowedDeclaratorCount.AtLeastOne
 	End Method
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TEnumMemberDeclarationSyntax)
-		Local l:TSyntaxLink = link.GetParent()
-		Local e:TEnumDeclarationSyntax = TEnumDeclarationSyntax(l.GetSyntaxOrSyntaxToken())
+	Method VisitTopDown(syntax:TEnumMemberDeclarationSyntax)
+		Local e:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax.Parent())
 		Assert e Else "Parent of enum member is not an enum declaration"
-		Local nameStr:String = syntax.name.identifier.lexerToken.value
-		Local scope:TScope = TScope(scopes[l])
+		Local nameStr:String = syntax.Name().Identifier().lexerToken.value
+		Local scope:TScope = TScope(scopes[e])
 		scope.AddDeclaration New TConstDeclaration(nameStr)
 	End Method
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TCallableDeclarationSyntax)
-		Local scope:TScope = GetParentCodeBlockScope(link)
+	Method VisitTopDown(syntax:TCallableDeclarationSyntax)
+		Local scope:TScope = GetParentCodeBlockScope(syntax)
 		Local nameStr:String
-		If syntax.name.identifierName Then
-			Local nameStr:String = syntax.name.identifierName.identifier.lexerToken.value
+		If syntax.Name().IdentifierName() Then
+			Local nameStr:String = syntax.Name().IdentifierName().Identifier().lexerToken.value
 			Local declaration:TCallableDeclaration
-			Select syntax.initiatorKeyword.Kind()
+			Select syntax.InitiatorKeyword().Kind()
 				Case TTokenKind.Function_ declaration = New TFunctionDeclaration(nameStr)
 				Case TTokenKind.Method_ declaration = New TMethodDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
 			scope.AddDeclaration declaration
-		Else If syntax.name.keywordName Then
+		Else If syntax.Name().KeywordName() Then
 			Local declaration:TCallableDeclaration
-			Select syntax.name.keywordName.Kind()
+			Select syntax.Name().KeywordName().Kind()
 				Case TTokenKind.New_ declaration = New TConstructorDeclaration(nameStr)
 				Case TTokenKind.Delete_ declaration = New TFinalizerDeclaration(nameStr)
 				Default RuntimeError "Missing case"
 			End Select
 			scope.AddDeclaration declaration
-		Else If syntax.name.operatorName Then
+		Else If syntax.Name().OperatorName() Then
 			'TOperatorSyntax
 			Throw "TODO"
 		Else
 			RuntimeError "Missing case"
 		End If
 		
-		If syntax.body Then
+		If syntax.Body() Then
 			' parameter variable declarations
-			Assert syntax.type_.suffixes.length >= 1 Else "Callable declaration is missing type suffixes"
-			Local callableTypeSuffixSyntax:TCallableTypeSuffixSyntax = TCallableTypeSuffixSyntax(syntax.type_.suffixes[syntax.type_.suffixes.length - 1])
+			Assert syntax.Type_().Suffixes().length >= 1 Else "Callable declaration is missing type suffixes"
+			Assert TCallableTypeSuffixSyntax(syntax.Type_().Suffixes()[syntax.Type_().Suffixes().length - 1]) Else "Callable declaration is missing callable type suffix"
+			Local callableTypeSuffixSyntax:TCallableTypeSuffixSyntax = TCallableTypeSuffixSyntax(syntax.Type_().Suffixes()[syntax.Type_().Suffixes().length - 1])
 			If Not callableTypeSuffixSyntax Then ' parameter list was missing in code
 				Throw "TODO" ' compile error
 				Return
 			End If
-			Local bodyScope:TScope = CreateAndAttachScope(link.FindChild(syntax.body), syntax.body, False)
-			AddSymbolsForDeclaratorsToScope callableTypeSuffixSyntax.parameterDeclaration, bodyScope, False, EAllowedDeclaratorCount.Any
+			Local bodyScope:TScope = CreateAndAttachScope(syntax.Body(), False)
+			AddSymbolsForDeclaratorsToScope callableTypeSuffixSyntax.ParameterDeclaration(), bodyScope, False, EAllowedDeclaratorCount.Any
 		End If
 		
 		' TODO: handle type parameters
 	End Method
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TForStatementSyntax)
+	Method VisitTopDown(syntax:TForStatementSyntax)
 		' counter variable declaration
-		If TForCounterDeclarationSyntax(syntax.counter) Then
-			Local declaration:TVariableDeclarationSyntax = TForCounterDeclarationSyntax(syntax.counter).declaration
-			Local bodyScope:TScope = CreateAndAttachScope(link.FindChild(syntax.body), syntax.body, False)
+		If TForCounterDeclarationSyntax(syntax.Counter()) Then
+			Local declaration:TVariableDeclarationSyntax = TForCounterDeclarationSyntax(syntax.Counter()).Declaration()
+			Local bodyScope:TScope = CreateAndAttachScope(syntax.Body(), False)
 			AddSymbolsForDeclaratorsToScope declaration, bodyScope, True, EAllowedDeclaratorCount.ExactlyOne
 		End If
 	End Method
 	
-	Method VisitTopDown(link:TSyntaxLink, syntax:TCatchTryBranchSyntax)
+	Method VisitTopDown(syntax:TCatchTryBranchSyntax)
 		' exception variable declaration
-		Local declaration:TVariableDeclarationSyntax = syntax.declaration
-		Local bodyScope:TScope = CreateAndAttachScope(link.FindChild(syntax.body), syntax.body, False)
+		Local declaration:TVariableDeclarationSyntax = syntax.Declaration()
+		Local bodyScope:TScope = CreateAndAttachScope(syntax.Body(), False)
 		AddSymbolsForDeclaratorsToScope declaration, bodyScope, False, EAllowedDeclaratorCount.ExactlyOne
 	End Method
 	
 	Private
-	Method GetParentCodeBlockScope:TScope(link:TSyntaxLink) ' requires the scope to exist already
-		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
-		Local scope:TScope = TScope(scopes[link.GetParent()])
+	Method GetParentCodeBlockScope:TScope(syntax:ISyntax) ' requires the scope to exist already
+		Assert TCodeBlockSyntax(syntax.Parent()) Else "Declaration is not in a block"
+		Local scope:TScope = TScope(scopes[syntax.Parent()])
 		Assert scope Else "Missing scope"
 		Return scope
 	End Method
 	
-	Method CreateAndAttachScope:TScope(link:TSyntaxLink, syntax:TCodeBlockSyntax, inheritsLocalsFromParent:Int) ' requires the scope to not exist yet
-		Assert link.GetSyntaxOrSyntaxToken() = syntax Else "Link does not match syntax"
-		Assert Not scopes.Contains(link) Else "Code block unexpectedly already has a scope"
-		Local scope:TScope = New TScope(GetScope(link.GetParent(), scopes), inheritsLocalsFromParent)
-		scopes[link] = scope
+	Method CreateAndAttachScope:TScope(syntax:TCodeBlockSyntax, inheritsLocalsFromParent:Int) ' requires the scope to not exist yet
+		Assert Not scopes.Contains(syntax) Else "Code block unexpectedly already has a scope"
+		Local scope:TScope = New TScope(GetScope(syntax.Parent(), scopes), inheritsLocalsFromParent)
+		scopes[syntax] = scope
 		Return scope
 	End Method
 	
 	Function AddSymbolsForDeclaratorsToScope(declaration:TVariableDeclarationSyntax, scope:TScope, shouldHaveDeclarationKeywords:Int, allowedDeclaratorCount:EAllowedDeclaratorCount)
-		Local declarationKeyword:TSyntaxToken = declaration.declarationKeyword
+		Local declarationKeyword:TSyntaxToken = declaration.DeclarationKeyword()
 		If Not declarationKeyword And shouldHaveDeclarationKeywords Then
 			Throw "TODO"
 			Return
@@ -186,33 +186,34 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		
 		' TODO: allow/disallow readonly
 		
+		Local elements:TVariableDeclaratorListElementSyntax[] = declaration.Declarators().Elements()
 		Select allowedDeclaratorCount
 			Case EAllowedDeclaratorCount.ExactlyOne
-				If declaration.declarators.elements.length < 1 Then
+				If elements.length < 1 Then
 					Throw "TODO"
-				Else If declaration.declarators.elements.length > 1 Then
+				Else If elements.length > 1 Then
 					Throw "TODO" ' this should haveve been handled by the parser already
-					ProcessDeclarator declaration.declarators.elements[0], scope, declarationKeyword, shouldHaveDeclarationKeywords
+					ProcessDeclarator elements[0], scope, declarationKeyword, shouldHaveDeclarationKeywords
 				Else
-					ProcessDeclarator declaration.declarators.elements[0], scope, declarationKeyword, shouldHaveDeclarationKeywords
+					ProcessDeclarator elements[0], scope, declarationKeyword, shouldHaveDeclarationKeywords
 				End If
 			Case EAllowedDeclaratorCount.AtLeastOne
-				If declaration.declarators.elements.length >= 1 Then
-					For Local d:Int = 0 Until declaration.declarators.elements.length
-						ProcessDeclarator declaration.declarators.elements[d], scope, declarationKeyword, shouldHaveDeclarationKeywords
+				If elements.length >= 1 Then
+					For Local d:Int = 0 Until elements.length
+						ProcessDeclarator elements[d], scope, declarationKeyword, shouldHaveDeclarationKeywords
 					Next
 				Else
 					Throw "TODO"
 				End If
 			Case EAllowedDeclaratorCount.Any
-				For Local d:Int = 0 Until declaration.declarators.elements.length
-					ProcessDeclarator declaration.declarators.elements[d], scope, declarationKeyword, shouldHaveDeclarationKeywords
+				For Local d:Int = 0 Until elements.length
+					ProcessDeclarator elements[d], scope, declarationKeyword, shouldHaveDeclarationKeywords
 				Next
 			Default RuntimeError "Missing case"
 		End Select
 		
 		Function ProcessDeclarator(syntax:TVariableDeclaratorListElementSyntax, scope:TScope, declarationKeyword:TSyntaxToken, shouldHaveDeclarationKeyword:Int)
-			Local nameStr:String = syntax.declarator.name.identifier.lexerToken.value
+			Local nameStr:String = syntax.Declarator().Name().Identifier().lexerToken.value
 			
 			Local symbol:TVariableDeclaration
 			If (Not declarationKeyword) Or (Not shouldHaveDeclarationKeyword) Then
@@ -235,8 +236,8 @@ End Type
 
 
 
-Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<TTypeDeclaration>'<TSyntaxLink<TTypeDeclarationSyntax>>'<TSyntaxLink, TScope>
-	' creates declarations for all given syntax links and inserts them into scopes
+Function CreateTypeDeclarations(typeDeclarationSyntaxes:TList, scopes:TMap)'<TTypeDeclarationSyntax>'<ISyntax, TScope>
+	' creates declarations for all given syntax nodes and inserts them into scopes
 	' since these declarations have references to all other declarations they have dependencies on,
 	' this requires the would-be declarations to be topologically sorted before they can be created
 	
@@ -256,6 +257,18 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 	' applying the type arguments; this type will in turn have dependencies on the generic type it
 	' was created from, as well as on all the type argument types - how to handle cycles there?)
 	
+	' e.g.: Type A Extends B<X>;   Type B<T> Where T : C
+	'           - A depends on B<X>
+	'           - B<X> depends on B<T> and on X
+	'           - B<T> depends on T
+	'           - T depends on C
+	'           => creation order: C, T, B<T>, X, B<X>, A
+	' e.g.: Type A Extends B<A>;   Type B<T>
+	'           - A depends on B<A>
+	'           - B<A> depends on B<T> and on A
+	'           - B<T> depends on T
+	'           => creation order: C, T, B<T>, X, B<X>, A
+	
 	' imports cannot have cycles, so types in imported compilation units must already have been resolved
 	' but within the same unit, types can depend on each other regardless of scope nesting and code order
 	' hence, this function should only be called once per compilation unit and given all type declaration
@@ -266,50 +279,48 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 	' create list of unresolved placeholder declarations and insert into scopes if possible
 	' these will be used for the dependency graph
 	Local typeDeclarations:TList = New TList'<TTypeDeclaration>
-	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
-		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
-		Local unresolvedDeclaration:TUnresolvedTypeDeclaration = New TUnresolvedTypeDeclaration(GetName(link), link)
+	For Local syntax:TTypeDeclarationSyntax = EachIn typeDeclarationSyntaxes
+		Local unresolvedDeclaration:TUnresolvedTypeDeclaration = New TUnresolvedTypeDeclaration(GetName(syntax), syntax)
 		typeDeclarations.AddLast unresolvedDeclaration
-		GetParentCodeBlockScope(link, scopes).AddDeclaration unresolvedDeclaration
+		GetParentCodeBlockScope(syntax, scopes).AddDeclaration unresolvedDeclaration
 		' TODO: handle failure to add (duplicate declaration)
 	Next
 	
 	' create dependency graph
 	Local graphNodes:TList = New TList'<TGraphNode>
-	Local graphNodeMap:TMap = New TMap'<TSyntaxLink, TGraphNode>
+	Local graphNodeMap:TMap = New TMap'<TTypeDeclarationSyntax, TGraphNode>
 	Local typeDeclarationListLink:TLink = typeDeclarations.FirstLink()
-	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
+	For Local syntax:ISyntax = EachIn typeDeclarationSyntaxes
 		Local node:TGraphNode = New TGraphNode(typeDeclarationListLink.Value())
 		graphNodes.AddLast node
-		graphNodeMap[link] = node
+		graphNodeMap[syntax] = node
 		typeDeclarationListLink = typeDeclarationListLink.NextLink()
 	Next
-	For Local link:TSyntaxLink = EachIn typeDeclarationSyntaxLinks
-		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
-		Local explicitDependencyLinks:TSyntaxLink[] = GetExplicitDependencies(link, syntax)
-		Local edges:TGraphNode[explicitDependencyLinks.length]
-		For Local d:Int = 0 Until explicitDependencyLinks.length
-			Local dependencyLink:TSyntaxLink = explicitDependencyLinks[d]
-			If TTypeDeclarationSyntax(dependencyLink.GetSyntaxOrSyntaxToken()) Then
-				' create edge link->dependencyLink
-				edges[d] = TGraphNode(graphNodeMap[dependencyLink])
-			Else If TTypeSyntax(dependencyLink.GetSyntaxOrSyntaxToken()) Then
+	For Local syntax:TTypeDeclarationSyntax = EachIn typeDeclarationSyntaxes
+		Local explicitDependencySyntaxes:ISyntax[] = GetExplicitDependencies(syntax) '<TTypeSyntax | TTypeDeclarationSyntax>[]
+		Local edges:TGraphNode[explicitDependencySyntaxes.length]
+		For Local d:Int = 0 Until explicitDependencySyntaxes.length
+			Local dependencySyntax:ISyntax = explicitDependencySyntaxes[d]
+			If TTypeDeclarationSyntax(dependencySyntax) Then
+				' create edge syntax->dependencySyntax
+				edges[d] = TGraphNode(graphNodeMap[dependencySyntax])
+			Else If TTypeSyntax(dependencySyntax) Then
 				' TODO: check before doing these casts:
-				Local dependencyNamePartSyntaxes:TQualifiedNamePartSyntax[] = TQualifiedNameTypeBaseSyntax(TTypeSyntax(dependencyLink.GetSyntaxOrSyntaxToken()).base).name.parts
-				Function PartStr:String(s:TQualifiedNamePartSyntax) Return s.identifier.lexerToken.value End Function
-				Local dependencyDeclarations:IDeclaration[] = GetParentCodeBlockScope(link, scopes).LookUpDeclarationWIP(PartStr(dependencyNamePartSyntaxes[0]).ToLower(), False)
+				Local dependencyNamePartSyntaxes:TQualifiedNamePartSyntax[] = TQualifiedNameTypeBaseSyntax(TTypeSyntax(dependencySyntax).Base()).Name().Parts()
+				Function PartStr:String(s:TQualifiedNamePartSyntax) Return s.Identifier().lexerToken.value End Function
+				Local dependencyDeclarations:IDeclaration[] = GetParentCodeBlockScope(syntax, scopes).LookUpDeclarationWIP(PartStr(dependencyNamePartSyntaxes[0]).ToLower(), False)
 				If dependencyNamePartSyntaxes.length > 1 Then
 					RuntimeError "TODO: lookup in more deeply nested scopes"
 				End If
 				Assert dependencyDeclarations.length = 1 Else "TODO: error handling for missing dependency"
 				' TODO: handle length = 0 (dependency doesnt exist (declaration wasnt found))
 				' look up placeholder declaration and then create edge
-				edges[d] = TGraphNode(graphNodeMap[TUnresolvedTypeDeclaration(dependencyDeclarations[0]).link])
+				edges[d] = TGraphNode(graphNodeMap[TUnresolvedTypeDeclaration(dependencyDeclarations[0]).syntax])
 			Else
 				RuntimeError "Missing case"
 			End If
 		Next
-		TGraphNode(graphNodeMap[link]).edges = edges
+		TGraphNode(graphNodeMap[syntax]).edges = edges
 	Next
 	
 	' create ordered list of strongly connected components from the dependency graph
@@ -318,7 +329,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 	' that (if there are no cycles) it describes a valid order to create the actual type declarations in
 	Local stronglyConnectedComponents:TList = TopologicalSort(graphNodes) '<TList<TGraphNode>>
 	
-	DebugOutput stronglyConnectedComponents ' TODO: remove debug output
+	DebugOutput stronglyConnectedComponents ' TODO: remove debug output (and standarddio import)
 	Function DebugOutput(sccs:TList)
 		Print "sccs:"
 		For Local scc:TList = EachIn sccs
@@ -333,22 +344,22 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 	
 	' TODO: create the actual declarations and replace the placeholders
 	
-	Function GetExplicitDependencies:TSyntaxLink[](link:TSyntaxLink, syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>
+	Function GetExplicitDependencies:ISyntax[](syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>[]
 		' does not include Object as an implicit super type or implicit base types of enums
 		' those are declared in BRL.Blitz and guaranteed to already be available
-		Local dependencies:TSyntaxLink[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
+		Local dependencies:ISyntax[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
 		
 		' outer type
-		If TTypeDeclarationSyntax(link.GetParentSyntax()) Then
-			dependencies :+ [link.GetParent()]
-		Else If TCodeBlockSyntax(link.GetParentSyntax()) Then
-			Local parentLink:TSyntaxLink = link.GetParent()
-			While parentLink And TCodeBlockSyntax(parentLink.GetSyntaxOrSyntaxToken())
-				If TTypeDeclarationSyntax(parentLink.GetParentSyntax()) Then
-					dependencies :+ [parentLink.GetParent()]
+		If TTypeDeclarationSyntax(syntax.Parent()) Then
+			dependencies :+ [syntax.Parent()]
+		Else If TCodeBlockSyntax(syntax.Parent()) Then
+			Local parentSyntax:ISyntax = syntax.Parent()
+			While TCodeBlockSyntax(parentSyntax)
+				If TTypeDeclarationSyntax(parentSyntax.Parent()) Then
+					dependencies :+ [parentSyntax.Parent()]
 					Exit
 				End If
-				parentLink = parentLink.GetParent()
+				parentSyntax = parentSyntax.Parent()
 			Wend
 		End If
 		
@@ -358,51 +369,46 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 		' super/base types
 		If TClassDeclarationSyntax(syntax) Then
 			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			If syntax.typeParameters Then
+			If syntax.TypeParameters() Then
 				RuntimeError "TODO"
 			End If
-			If syntax.superClass Then
-				Local superClassLink:TSyntaxLink = link.FindChild(syntax.superClass)
-				link.FindChild(syntax.superClass)
-				dependencies :+ [superClassLink]
+			If syntax.SuperClass() Then
+				Local superClassSyntax:ISyntax = syntax.SuperClass()
+				dependencies :+ [superClassSyntax]
 				' TODO: handle generic super class
 			End If
-			If syntax.superInterfaces Then
-				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then
-						Local superInterfaceSyntax:TTypeSyntax = e.type_
-						Local superInterfaceLink:TSyntaxLink = superInterfacesLink.FindChild(e).FindChild(e.type_)
-						dependencies :+ [superInterfaceLink]
+			If syntax.SuperInterfaces() Then
+				For Local e:TTypeListElementSyntax = EachIn syntax.SuperInterfaces().Elements()
+					If e.Type_() Then
+						Local superInterfaceSyntax:TTypeSyntax = e.Type_()
+						dependencies :+ [superInterfaceSyntax]
 						' TODO: handle generic super interfaces
 					End If
 				Next
 			End If
 		Else If TStructDeclarationSyntax(syntax) Then
 			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			If syntax.typeParameters Then
+			If syntax.TypeParameters() Then
 				RuntimeError "TODO"
 			End If
 			' TODO: handle generic super interfaces
 		Else If TInterfaceDeclarationSyntax(syntax) Then
 			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			If syntax.typeParameters Then
+			If syntax.TypeParameters() Then
 				RuntimeError "TODO"
 			End If
-			If syntax.superInterfaces Then
-				Local superInterfacesLink:TSyntaxLink = link.FindChild(syntax.superInterfaces)
-				For Local e:TTypeListElementSyntax = EachIn syntax.superInterfaces.elements
-					If e.type_ Then
-						Local superInterfaceSyntax:TTypeSyntax = e.type_
-						Local superInterfaceLink:TSyntaxLink = superInterfacesLink.FindChild(e).FindChild(e.type_)
-						dependencies :+ [superInterfaceLink]
+			If syntax.SuperInterfaces() Then
+				For Local e:TTypeListElementSyntax = EachIn syntax.SuperInterfaces().elements
+					If e.Type_() Then
+						Local superInterfaceSyntax:TTypeSyntax = e.Type_()
+						dependencies :+ [superInterfaceSyntax]
 						' TODO: handle generic super interfaces
 					End If
 				Next
 			End If
 		Else If TEnumDeclarationSyntax(syntax) Then
 			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			If syntax.baseType Then dependencies :+ [link.FindChild(syntax.baseType)]
+			If syntax.BaseType() Then dependencies :+ [Syntax.BaseType()]
 			' TODO: handle generic base type
 		Else
 			RuntimeError "Missing case"
@@ -410,66 +416,59 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxLinks:TList, scopes:TMap)'<
 		
 		Return dependencies
 		
-		Function GetTypeArgumentDependencies:TSyntaxLink[](typeArgumentListLink:TSyntaxLink)'<TTypeSyntax>[]'<TTypeArgumentListSyntax>
-			' TODO: the type argument can itself have type arguments
-			'       but in that case, the actual dependency is not on the type belonging to the
-			'       type argument's declaration, but on the type produced by applying its own
-			'       type arguments
-			'       e.g. A Extends B<C>
-
-			
-			Local typeListLink:TSyntaxLink = typeArgumentListLink.FindChild(TTypeArgumentListSyntax(typeArgumentListLink.GetSyntaxOrSyntaxToken()).list) '<TTypeListSyntax>
-			Local typeListSyntax:TTypeListSyntax = TTypeListSyntax(typeListLink.GetSyntaxOrSyntaxToken())
-			Local dependencies:TSyntaxLink[]'<TTypeSyntax>[]
-			For Local e:TTypeListElementSyntax = EachIn typeListSyntax.elements
-				Local typeArgumentSyntax:TTypeSyntax = e.type_
-				Local typeArgumentLink:TSyntaxLink = typeListLink.FindChild(e).FindChild(e.type_)
+		Function GetTypeArgumentDependencies:TTypeSyntax[](typeArgumentListSyntax:TTypeArgumentListSyntax)
+			Local typeListSyntax:TTypeListSyntax = typeArgumentListSyntax.TypeList()
+			Local dependencies:TTypeSyntax[]
+			For Local e:TTypeListElementSyntax = EachIn typeListSyntax.Elements()
+				Local typeArgumentSyntax:TTypeSyntax = e.Type_()
 				
 				' TODO: the type argument can itself have type arguments
 				'       but in that case, the actual dependency is not on the type belonging to the
-				'       type argument's declaration, but on the type produced by applying its own
-				'       type arguments
-				'       e.g. A Extends B<C>
-				If typeArgumentSyntax.typeArguments Then
+				'       type argument's declaration, but on the type produced by applying its
+				'       type arguments to it
+				'       e.g.: Type A Extends B<C>; Type B<T>
+				'                - A depends on B<C>
+				'                - B<C> depends on B<T> and on C
+				'                - B does not depend on A or C
+				If typeArgumentSyntax.TypeArguments() Then
 					RuntimeError "TODO"
-					'Local typeArgumentTypeArgumentListLink:TSyntaxLink = typeArgumentLink.FindChild(typeArgumentSyntax.typeArguments)
-					'dependencies :+ GetTypeArgumentDependencies(typeArgumentTypeArgumentListLink)
+					'Local typeArgumentTypeArgumentListSyntax:ISyntax = typeArgumentSyntax.TypeArguments()
+					'dependencies :+ GetTypeArgumentDependencies(typeArgumentTypeArgumentListSyntax)
 				End If
 
-				dependencies :+ [typeArgumentLink]
+				dependencies :+ [typeArgumentSyntax]
 			Next
 			Return dependencies
 		End Function
 	End Function
 	
-	Function GetParentCodeBlockScope:TScope(link:TSyntaxLink, scopes:TMap)
-		Assert TCodeBlockSyntax(link.GetParent().GetSyntaxOrSyntaxToken()) Else "Declaration is not in a block"
-		Local scope:TScope = TScope(scopes[link.GetParent()])
+	Function GetParentCodeBlockScope:TScope(syntax:ISyntax, scopes:TMap)
+		Assert TCodeBlockSyntax(syntax.Parent()) Else "Declaration is not in a block"
+		Local scope:TScope = TScope(scopes[syntax.Parent()])
 		Assert scope Else "Missing scope"
 		Return scope
 	End Function
 	
-	Function GetName:String(link:TSyntaxLink)
-		Local syntax:TTypeDeclarationSyntax = TTypeDeclarationSyntax(link.GetSyntaxOrSyntaxToken())
+	Function GetName:String(syntax:TTypeDeclarationSyntax)
 		If TClassDeclarationSyntax(syntax) Then
-			Return TClassDeclarationSyntax(syntax).name.identifier.lexerToken.value
+			Return TClassDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
 		Else If TStructDeclarationSyntax(syntax) Then
-			Return TStructDeclarationSyntax(syntax).name.identifier.lexerToken.value
+			Return TStructDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
 		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Return TInterfaceDeclarationSyntax(syntax).name.identifier.lexerToken.value
+			Return TInterfaceDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
 		Else If TEnumDeclarationSyntax(syntax) Then
-			Return TEnumDeclarationSyntax(syntax).name.identifier.lexerToken.value
+			Return TEnumDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
 		Else
 			RuntimeError "Missing case"
 		End If
 	End Function
 	
 	Type TUnresolvedTypeDeclaration Extends TTypeDeclaration Final
-		Field ReadOnly link:TSyntaxLink
+		Field ReadOnly syntax:TTypeDeclarationSyntax
 		
-		Method New(name:String, link:TSyntaxLink)
+		Method New(name:String, syntax:TTypeDeclarationSyntax)
 			Self.name = name
-			Self.link = link
+			Self.syntax = syntax
 		End Method
 		
 		Method GetSyntax:TTypeDeclarationSyntax() Override

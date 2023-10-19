@@ -1,0 +1,123 @@
+$(kind) $(typename(name, "SyntaxData"))$(iff(extends, " Extends "))$(list(map(extends, function(e) return typename(e, "SyntaxData") end)))$(iff(implements, " Implements "))$(list(map(implements, function(i) return typename(i, "SyntaxData") end)))$(iff(kind == "Type", iff(abstract, " Abstract", " Final")))
+@if kind == "Type" then
+	@for i, f in pairs(fields) do
+	Field ReadOnly $(f.name):$(typename(f.type, "SyntaxData"))$(iff(f.nullable and f.minor, " {nullable minor}", iff(f.nullable, " {nullable}") .. iff(f.minor, " {minor}")))
+	@end
+	
+	@if not abstract then
+	Function Create:$(typename(name, "SyntaxData"))($(list(map(fields, function(f) return f.name..":"..typename(f.type, "SyntaxData") end))))
+		Return New $(typename(name, "SyntaxData"))($(list(map(fields, function(f) return f.name end))))
+	End Function
+	
+	Private
+	Method New($(list(map(fields, function(f) return f.name..":"..typename(f.type, "SyntaxData") end))))
+		@for i, f in pairs(fields) do
+		Self.$(f.name) = $(f.name)
+		@end
+		? Debug
+		Verify Self
+		?
+	End Method
+	
+	public
+	Method CreateSyntax:$(typename(name, "Syntax"))(parent:ISyntaxOrSyntaxTree) Override
+		Return New $(typename(name, "Syntax"))(parent, Self)
+	End Method
+	
+	Method GetChildren:ISyntaxDataOrSyntaxToken[]() Override
+		Return ISyntaxDataOrSyntaxToken[](ChildrenToArray( ..
+			@for i, f in pairs(fields) do
+			$(f.name)$(iff(i < #fields, ",")) ..
+			@end
+		))
+	End Method
+	@end
+@end
+@if kind == "Type" and abstract then
+	Method CreateSyntax:$(typename(name, "Syntax"))(parent:ISyntaxOrSyntaxTree) Override Abstract
+@end
+@if kind == "Interface" then
+	Method CreateSyntax:$(typename(name, "Syntax"))(parent:ISyntaxOrSyntaxTree) Override
+@end
+End $(kind)
+
+$(kind) $(typename(name, "Syntax"))$(iff(extends, " Extends "))$(list(map(extends, function(e) return typename(e, "Syntax") end)))$(iff(implements, " Implements "))$(list(map(implements, function(i) return typename(i, "Syntax") end)))$(iff(kind == "Type", iff(abstract, " Abstract", " Final")))
+@if kind == "Type" then
+	Private
+	@if not abstract then
+	Field ReadOnly _data:$(typename(name, "SyntaxData"))
+	@end
+	@if name == "TCodeBlock" then
+		@for i, f in pairs(fields) do
+	Field _$(f.name):TWeakReference'<$(typename(f.type, "Syntax"))>
+		@end
+	@else
+		@for i, f in pairs(fields) do
+			@if not isspecialtype(f.type) then
+	Field _$(f.name):$(typename(f.type, "Syntax"))
+			@end
+		@end
+	@end
+	
+	Public
+	@if not abstract then
+	Method New(parent:ISyntaxOrSyntaxTree, data:$(typename(name, "SyntaxData")))
+		Self._parent = parent
+		Self._data = data
+	End Method
+	
+	Method Data:$(typename(name, "SyntaxData"))() Override
+		Return _data
+	End Method
+	@end
+	@for i, f in pairs(fields) do
+	
+	Method $(capitalize(f.name)):$(typename(f.type, "Syntax"))()$(iff(f.nullable and f.minor, " {nullable minor}", iff(f.nullable, " {nullable}") .. iff(f.minor, " {minor}")))
+	@if name == "TCodeBlock" then
+		' special casing for code blocks: children are weakly referenced so that the
+		' corresponding subtree can be reclaimed by GC when no longer referenced anywhere else
+		Local array:$(typename(f.type, "Syntax"))
+		If _$(f.name) Then array = $(typename(f.type, "Syntax"))(_$(f.name).Get())
+		If Not array And _data.$(f.name) Then
+			array = New $(withoutbrackets(typename(f.type, "Syntax")))[_data.$(f.name).length]
+			For Local i:Int = 0 Until _data.$(f.name).length array[i] = _data.$(f.name)[i].CreateSyntax(Self) Next
+			_$(f.name) = New TWeakReference(array)
+		End If
+		Return array
+	@else
+		@if isspecialtype(f.type) then
+		Return _data.$(f.name)
+		@elseif hasbrackets(f.type) then
+		If Not _$(f.name) And _data.$(f.name) Then
+			Local array:$(typename(f.type, "Syntax")) = New $(withoutbrackets(typename(f.type, "Syntax")))[_data.$(f.name).length]
+			For Local i:Int = 0 Until _data.$(f.name).length; array[i] = _data.$(f.name)[i].CreateSyntax(Self); Next
+			_$(f.name) = array
+		End If
+		Return _$(f.name)
+		@else
+		If Not _$(f.name) And _data.$(f.name) Then _$(f.name) = _data.$(f.name).CreateSyntax(Self)
+		Return _$(f.name)
+		@end
+	@end
+	End Method
+	@end
+	
+	@if not abstract then
+	Method GetChildren:ISyntaxOrSyntaxToken[]() Override
+		@if name == "TCodeBlock" then
+		Return Elements()
+		@else
+		Return ISyntaxOrSyntaxToken[](ChildrenToArray( ..
+			@for i, f in pairs(fields) do
+			$(capitalize(f.name))()$(iff(i < #fields, ",")) ..
+			@end
+		))
+		@end
+	End Method
+	@end
+@end
+End $(kind)
+
+
+
+

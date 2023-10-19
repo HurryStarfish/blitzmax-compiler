@@ -1,0 +1,69 @@
+@define processTemplates
+	print("Translating code templates")
+	
+	local inputdatafilepath = %BUILDPATH% .. "/syntax/Syntax.bmx.lua"
+	local templatefilepath = %BUILDPATH% .. "/syntax/Syntax.bmx.template"
+	local outputfilepath = %BUILDPATH% .. "/syntax/Syntax.bmx"
+	
+	local template_eval = dofile(%BUILDPATH% .. "/template-text.lua").template_eval
+	
+	dofile(inputdatafilepath) -- load input data
+	
+	local templatefile = assert(io.open(templatefilepath, "r"), "Failed to open template file")
+	local template = templatefile:read("*a")
+	io.close(templatefile)
+	
+	local outputfile = assert(io.open(outputfilepath .. ".tmp", "w"), "Failed to open output file")
+	outputfile:write("' =========================== auto-generated file, do not edit ==========================\n")
+	outputfile:write("' type template source file: " .. templatefilepath .. "\n")
+	outputfile:write("' data source file: " .. inputdatafilepath .. "\n")
+	outputfile:write("\n")
+	outputfile:write(fileheader)
+	outputfile:write("\n\n\n")
+	for _, categorywithnodes in ipairs(nodetypes) do
+		outputfile:write("' " .. string.rep("~", 38) .. " " .. categorywithnodes.category .. " " .. string.rep("~", 38) .. "\n\n\n\n")
+		
+		for _, node in ipairs(categorywithnodes) do
+			node.fields = node.fields or { }
+			local env = node
+			env.iff = function(c, t, f) if c then return t else return f or "" end; end
+			env.isspecialtype = function (n) local n_ = env.withoutbrackets(n); return n_ == Token or n_ == String end
+			env.typename = function (n, s) if env.isspecialtype(n) then return n else local _, _, t, m = string.find(n, "^([%w_]*)(.*)$"); return t .. s .. m end; end
+			env.hasbrackets = function (tn) return string.match(tn, "%[%]$") end
+			env.withoutbrackets = function (tn) if env.hasbrackets(tn) then return string.sub(tn, 1, string.len(tn) - 2) else return tn end; end
+			env.capitalize = function (s) return (s:gsub("^%l", string.upper)) end
+			env.map = function(a, m) local r = {}; for k, v in pairs(a or {}) do r[k] = m(v) end; return r end
+			env.join = function(a, j) return table.concat(a, j) end
+			env.list = function(a) return env.join(a, ", ") end
+			
+			local ok, text = template_eval(template, env)
+			if not ok then -- in this case text would be an error message
+				print("ERROR: " .. text)
+				outputfile:write("ERROR: " .. text)
+			else
+				outputfile:write(text)
+			end
+		end
+	end
+	io.close(outputfile)
+	
+	local oldoutputfile = io.open(outputfilepath, "r")
+	if oldoutputfile then
+		local oldoutput = oldoutputfile:read("*a")
+		io.close(oldoutputfile)
+		local newoutputfile = assert(io.open(outputfilepath .. ".tmp", "r"), "Failed to reopen output file")
+		local newoutput = newoutputfile:read("*a")
+		io.close(newoutputfile)
+		if oldoutput == newoutput then
+			-- prevents unnecessary recompiling
+			assert(os.remove(outputfilepath .. ".tmp"), "Failed to remove output file")
+		else
+			assert(os.remove(outputfilepath), "Failed to remove old output file")
+			assert(os.rename(outputfilepath .. ".tmp", outputfilepath), "Failed to rename output file")
+		end
+	else
+		assert(os.rename(outputfilepath .. ".tmp", outputfilepath), "Failed to rename output file")
+	end
+@end
+
+processTemplates

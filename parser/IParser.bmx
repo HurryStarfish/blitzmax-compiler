@@ -6,7 +6,7 @@ Import BRL.LinkedList
 
 
 Interface IParser
-	Method ParseCompilationUnit:TCompilationUnitSyntax()
+	Method ParseCompilationUnit:TCompilationUnitSyntaxData()
 	Method Errors:TList()'<TParseError>
 End Interface
 

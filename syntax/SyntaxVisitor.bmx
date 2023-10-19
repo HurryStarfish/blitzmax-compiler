@@ -1,18 +1,14 @@
 SuperStrict
-Import "ISyntax.bmx"
-Import "SyntaxTree.bmx"
+Import "SyntaxBase.bmx"
 Import BRL.Reflection
-Import "ReflectionUtils.bmx"
 
 
 
 Private
 Global ISyntaxType:TTypeId = TTypeId.ForName("ISyntax")
 Global TSyntaxTokenType:TTypeId = TTypeId.ForName("TSyntaxToken")
-Global TSyntaxLinkType:TTypeId = TTypeId.ForName("TSyntaxLink")
 Assert ISyntaxType Else "ISyntax type not found"
 Assert TSyntaxTokenType Else "ISyntaxToken type not found"
-Assert TSyntaxLinkType Else "TSyntaxLink type not found"
 
 
 Public
@@ -26,7 +22,7 @@ Type TSyntaxVisitor Abstract
 	'       as a parameter (from parent, if top-down) or a map parameter (from children, if bottom-up)
 	
 	Method Visit(tree:TSyntaxTree) Final
-		VisitSyntax Self, tree.GetRoot()
+		VisitSyntax Self, tree.GetRootSyntax()
 	End Method
 End Type
 
@@ -102,11 +98,10 @@ Function GetVisitMethods:SVisitMethodAndDirection[](visitorType:TTypeId)
 			Local returnType:TTypeId = m.TypeId().ReturnType()
 			Local argTypes:TTypeId[] = m.ArgTypes()
 			Assert returnType = VoidTypeId Else "Invalid return type on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes.length = 2 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes[0].ExtendsType(TSyntaxLinkType) Else "Invalid 1st parameter type on " + visitorType.Name() + "." + m.Name() + " (must be TSyntaxLink)"
-			Assert argTypes[1] = ISyntaxType Or Not argTypes[0].IsInterface() Else "Invalid 2nd parameter type on " + visitorType.Name() + "." + m.Name() + " (must be a subtype of ISyntaxOrSyntaxToken, can't use interfaces other than ISyntax due to reflection being broken)"
-			Assert argTypes[1].ExtendsType(ISyntaxType) Or argTypes[1].Interfaces().Contains(ISyntaxType) Or ..
-				   argTypes[1].ExtendsType(TSyntaxTokenType) Else "Invalid 2nd parameter type on " + visitorType.Name() + "." + m.Name()
+			Assert argTypes.length = 1 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
+			Assert argTypes[0] = ISyntaxType Or Not argTypes[0].IsInterface() Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name() + " (must be a subtype of ISyntaxOrSyntaxToken, can't use interfaces other than ISyntax due to reflection being broken)"
+			Assert argTypes[0].ExtendsType(ISyntaxType) Or argTypes[0].Interfaces().Contains(ISyntaxType) Or ..
+				   argTypes[0].ExtendsType(TSyntaxTokenType) Else "Invalid parameter type on " + visitorType.Name() + "." + m.Name()
 			visitMethods :+ [New SVisitMethodAndDirection(m, direction)]
 		End If
 	Next
@@ -116,7 +111,7 @@ End Function
 
 
 
-Function VisitSyntax(visitor:TSyntaxVisitor, rootLink:TSyntaxLink)
+Function VisitSyntax(visitor:TSyntaxVisitor, rootSyntax:ISyntax)
 	Local map:TMap = VisitMethods ' because ".VisitMethods" is broken
 	Local visitorType:TTypeId = TTypeId.ForObject(visitor)
 	Local visitMethods:SVisitMethodAndDirection[] = SVisitMethodAndDirection[](map[visitorType])
@@ -125,14 +120,14 @@ Function VisitSyntax(visitor:TSyntaxVisitor, rootLink:TSyntaxLink)
 		map[visitorType] = visitMethods
 	End If
 	
-	VisitSyntaxInner visitor, visitMethods, rootLink, rootLink.GetSyntaxOrSyntaxToken()
+	VisitSyntaxInner visitor, visitMethods, rootSyntax
 	
-	Function VisitSyntaxInner(visitor:TSyntaxVisitor, visitMethods:SVisitMethodAndDirection[], link:TSyntaxLink, nodeOrToken:ISyntaxOrSyntaxToken)		
+	Function VisitSyntaxInner(visitor:TSyntaxVisitor, visitMethods:SVisitMethodAndDirection[], syntaxOrSyntaxToken:ISyntaxOrSyntaxToken)
 		' select visit methods applicable to this node
-		Local nodeOrTokenType:TTypeId = TTypeId.ForObject(nodeOrToken)
+		Local nodeOrTokenType:TTypeId = TTypeId.ForObject(syntaxOrSyntaxToken)
 		Local applicableMethods:SVisitMethodAndDirectionAndVisitor[]
 		For Local v:SVisitMethodAndDirection = EachIn visitMethods
-			Local syntaxArgType:TTypeId = v.visitMethod.ArgTypes()[1]
+			Local syntaxArgType:TTypeId = v.visitMethod.ArgTypes()[0]
 			If nodeOrTokenType.ExtendsType(syntaxArgType) Or nodeOrTokenType.Interfaces().Contains(syntaxArgType) Then ' this is so broken
 				applicableMethods :+ [New SVisitMethodAndDirectionAndVisitor(v.visitMethod, v.direction, visitor)]
 			End If
@@ -141,25 +136,27 @@ Function VisitSyntax(visitor:TSyntaxVisitor, rootLink:TSyntaxLink)
 		' top-down visit
 		For Local m:SVisitMethodAndDirectionAndVisitor = EachIn applicableMethods
 			If m.direction = EVisitDirection.TopDown Then
-				Visit m.visitMethod, m.visitor, link, nodeOrToken
+				Visit m.visitMethod, m.visitor, syntaxOrSyntaxToken
 			End If
 		Next
 		
-		For Local childLink:TSyntaxLink = EachIn link.GetChildren()
-			VisitSyntaxInner visitor, visitMethods, childLink, childLink.GetSyntaxOrSyntaxToken()
-		Next
+		If ISyntax(syntaxOrSyntaxToken) Then
+			For Local childSyntaxOrSyntaxToken:ISyntaxOrSyntaxToken = EachIn ISyntax(syntaxOrSyntaxToken).GetChildren()
+				VisitSyntaxInner visitor, visitMethods, childSyntaxOrSyntaxToken
+			Next
+		End If
 		
 		' bottom-up visit
 		For Local m:SVisitMethodAndDirectionAndVisitor = EachIn applicableMethods
 			If m.direction = EVisitDirection.BottomUp Then
-				Visit m.visitMethod, m.visitor, link, nodeOrToken
+				Visit m.visitMethod, m.visitor, syntaxOrSyntaxToken
 			End If
 		Next
 				
-		Function Visit(visitMethod:TMethod, visitor:TSyntaxVisitor, link:TSyntaxLink, nodeOrToken:ISyntaxOrSyntaxToken)
+		Function Visit(visitMethod:TMethod, visitor:TSyntaxVisitor, nodeOrToken:ISyntaxOrSyntaxToken)
 			'visitMethod.Invoke visitor, [node] ' .Invoke is broken
-			Local fptr(v:Object, l:Object, s:Object) = visitMethod._ref
-			fptr visitor, link, nodeOrToken
+			Local fptr(v:Object, s:Object) = visitMethod._ref
+			fptr visitor, nodeOrToken
 		End Function
 	End Function
 End Function

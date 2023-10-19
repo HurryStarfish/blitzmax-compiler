@@ -77,7 +77,7 @@ End Function
 Type TSyntaxTokenVisitor Extends TSyntaxVisitor
 	Field doPrint:Int
 	Method New(doPrint:Int) Self.doPrint = doPrint End Method
-	Method VisitTopDown(link:TSyntaxLink, token:TSyntaxToken)
+	Method VisitTopDown(token:TSyntaxToken)
 		If doPrint Then
 			'Print token.ToString()
 			Function TriviaToString:String(trivia:TLexerToken[])
@@ -111,7 +111,7 @@ Function TestParser(doPrint:Int = True)
 			Print "PARSE ERROR: " + error.ToString()
 			'Notify "PARSE ERROR: " + error.ToString()
 		Next
-		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken())
+		Print SyntaxToString(x.GetRootSyntax())
 		
 		Print "-------------------------"
 		
@@ -137,13 +137,13 @@ Function TestSymbols(doPrint:Int = True)
 		Local vt:TCollectTypeDeclarationSyntaxesVisitor = New TCollectTypeDeclarationSyntaxesVisitor
 		vt.Visit x
 		
-		CreateTypeDeclarations vt.typeDeclarationSyntaxLinks, vs.scopes
+		CreateTypeDeclarations vt.typeDeclarationSyntaxes, vs.scopes
 		
 		
 		
 		'Local vs:TCreateScopesAndInsertDeclarationsVisitor = New TCreateScopesAndInsertDeclarationsVisitor
 		'vs.Visit x
-		Print SyntaxToString(x.GetRoot(), x.GetRoot().GetSyntaxOrSyntaxToken(), False, vs.scopes)
+		Print SyntaxToString(x.GetRootSyntax(), False, vs.scopes)
 	End If
 End Function
 
@@ -268,7 +268,7 @@ Type TTypeResolutionVisitor Extends TSyntaxVisitor
 End Type
 End Rem
 Type TPrintSemanticVisitor Extends TSyntaxVisitor
-	Method VisitTopDown(link:TSyntaxLink, s:ISyntax)
+	Method VisitTopDown(s:ISyntax)
 		'StandardIOStream.WriteString SyntaxToString(s)
 	End Method
 End Type
@@ -283,7 +283,7 @@ End Function
 
 Type TGenTestVisitor Extends TSyntaxVisitor
 	Field str:String = ""
-	Method VisitTopDown(link:TSyntaxLink, s:TSyntax) ' combined instead of separate visitors because of reflection bug
+	Method VisitTopDown(s:TSyntax) ' combined instead of separate visitors because of reflection bug
 		If TStatementSeparatorSyntax(s) Then
 			If str And Not str.EndsWith("<-") Then
 				Print str
@@ -295,10 +295,10 @@ Type TGenTestVisitor Extends TSyntaxVisitor
 			str :+ sstr + "   <-"
 		End If
 	End Method
-	Method VisitTopDown(link:TSyntaxLink, s:TRelationalExpressionSyntax)
+	Method VisitTopDown(s:TRelationalExpressionSyntax)
 		str :+ " rel"
 	End Method
-	Method VisitTopDown(link:TSyntaxLink, s:TTypeApplicationExpressionSyntax)
+	Method VisitTopDown(s:TTypeApplicationExpressionSyntax)
 		str :+ " gen"
 	End Method
 End Type
@@ -317,7 +317,7 @@ Type TTestVisitor Extends TSyntaxVisitor
 		Print f.CodeRange().ToString()
 	End Method
 	End Rem
-	Method VisitTopDown(link:TSyntaxLink, f:ISyntax)
+	Method VisitTopDown(f:ISyntax)
 		Handle f
 	End Method
 	

@@ -1,20 +1,26 @@
 SuperStrict
-Import "SyntaxOrSyntaxToken.bmx"
+Import "SyntaxBase.bmx"
 Import "../lexer/LexerToken.bmx"
 
 
 
-Type TSyntaxToken Implements ISyntaxOrSyntaxToken Final
+Type TSyntaxToken Implements ISyntaxOrSyntaxToken, ISyntaxDataOrSyntaxToken Final
 	Field ReadOnly lexerToken:TLexerToken
 	Field ReadOnly leadingTrivia:TLexerToken[]
 	Field ReadOnly trailingTrivia:TLexerToken[]
 	
+	Function Create:TSyntaxToken(lexerToken:TLexerToken, leadingTrivia:TLexerToken[], trailingTrivia:TLexerToken[])
+		Return New TSyntaxToken(lexerToken, leadingTrivia, trailingTrivia)
+	End Function
+	
+	Protected
 	Method New(lexerToken:TLexerToken, leadingTrivia:TLexerToken[], trailingTrivia:TLexerToken[])
 		Self.lexerToken = lexerToken
 		Self.leadingTrivia = leadingTrivia
 		Self.trailingTrivia = trailingTrivia
 	End Method
 	
+	Public
 	Method Kind:TTokenKind()
 		Return lexerToken.kind
 	End Method

@@ -261,7 +261,7 @@ Type TParser Implements IParser Final
 			nextLeadingTrivia = []
 		End If
 		nextLexerToken = t
-		currentToken = New TSyntaxToken(newCurrentLexerToken, newCurrentLeadingTrivia, newCurrentTrailingTrivia)
+		currentToken = TSyntaxToken.Create(newCurrentLexerToken, newCurrentLeadingTrivia, newCurrentTrailingTrivia)
 	End Method
 	
 	Private
@@ -362,7 +362,7 @@ Type TParser Implements IParser Final
 					leadingTrivia :+ st.leadingTrivia + [st.lexerToken] + st.trailingTrivia
 				Next
 				leadingTrivia :+ token.leadingTrivia
-				token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+				token = TSyntaxToken.Create(token.lexerToken, leadingTrivia, token.trailingTrivia)
 			Else If Not token Then
 				token = GenerateMissingToken(generatedKindIfMissing)
 				Local expectedKindsStr:String
@@ -424,7 +424,7 @@ Type TParser Implements IParser Final
 					leadingTrivia :+ st.leadingTrivia + [st.lexerToken] + st.trailingTrivia
 				Next
 				leadingTrivia :+ token.leadingTrivia
-				token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+				token = TSyntaxToken.Create(token.lexerToken, leadingTrivia, token.trailingTrivia)
 			Else If Not token Then
 				token = TakeToken(kind)
 			End If
@@ -439,7 +439,7 @@ Type TParser Implements IParser Final
 	
 	Method GenerateMissingToken:TSyntaxToken(kind:TTokenKind, value:String)
 		Local missingTokenLocation:SCodeLocation = currentToken.lexerToken.codeLocation
-		Local missingToken:TSyntaxToken = New TSyntaxToken(New TLexerToken(value, kind, missingTokenLocation, True), [], [])
+		Local missingToken:TSyntaxToken = TSyntaxToken.Create(New TLexerToken(value, kind, missingTokenLocation, True), [], [])
 		Return missingToken
 	End Method
 	
@@ -447,20 +447,20 @@ Type TParser Implements IParser Final
 		Return GenerateMissingToken(TTokenKind.Identifier, "<missing identifier>")
 	End Method
 	
-	Method GenerateMissingName:TNameSyntax()
-		Return New TNameSyntax(GenerateMissingIdentifier())
+	Method GenerateMissingName:TNameSyntaxData()
+		Return TNameSyntaxData.Create(GenerateMissingIdentifier())
 	End Method
 	
-	Method GenerateMissingQualifiedName:TQualifiedNameSyntax()
-		Return New TQualifiedNameSyntax([New TQualifiedNamePartSyntax(Null, GenerateMissingIdentifier())])
+	Method GenerateMissingQualifiedName:TQualifiedNameSyntaxData()
+		Return TQualifiedNameSyntaxData.Create([TQualifiedNamePartSyntaxData.Create(Null, GenerateMissingIdentifier())])
 	End Method
 	
-	Method GenerateMissingExpression:TNameExpressionSyntax() ' TODO: TErrorExpression?
-		Return New TNameExpressionSyntax(GenerateMissingName())
+	Method GenerateMissingExpression:TNameExpressionSyntaxData() ' TODO: TErrorExpression?
+		Return TNameExpressionSyntaxData.Create(GenerateMissingName())
 	End Method
 	
-	Method GenerateMissingType:TTypeSyntax()
-		Return New TTypeSyntax(Null, New TQualifiedNameTypeBaseSyntax(GenerateMissingQualifiedName()), Null, Null, [])
+	Method GenerateMissingType:TTypeSyntaxData()
+		Return TTypeSyntaxData.Create(Null, TQualifiedNameTypeBaseSyntaxData.Create(GenerateMissingQualifiedName()), Null, Null, [])
 	End Method
 	
 	Method ReportError(error:String)
@@ -477,29 +477,29 @@ Type TParser Implements IParser Final
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Top-Level ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseCompilationUnit:TCompilationUnitSyntax() Override ' always succeeds
-		Local header:TCodeHeaderSyntax = ParseCodeHeader()
-		Local body:TCodeBodySyntax = ParseCodeBody()
+	Method ParseCompilationUnit:TCompilationUnitSyntaxData() Override ' always succeeds
+		Local header:TCodeHeaderSyntaxData = ParseCodeHeader()
+		Local body:TCodeBodySyntaxData = ParseCodeBody()
 		Local eofToken:TSyntaxToken = TakeToken(TTokenKind.Eof)
-		Return New TCompilationUnitSyntax(header, body, eofToken)
+		Return TCompilationUnitSyntaxData.Create(header, body, eofToken)
 	End Method
 	
-	Method ParseCodeHeader:TCodeHeaderSyntax() ' always succeeds
-		Local elements:ICodeHeaderElementSyntax[]
+	Method ParseCodeHeader:TCodeHeaderSyntaxData() ' always succeeds
+		Local elements:ICodeHeaderElementSyntaxData[]
 		Repeat
-			Local element:ICodeHeaderElementSyntax = ParseCodeHeaderElement()
+			Local element:ICodeHeaderElementSyntaxData = ParseCodeHeaderElement()
 			If Not element Then Exit
 			elements :+ [element]
 		Forever
-		Return New TCodeHeaderSyntax(elements)
+		Return TCodeHeaderSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseCodeBody:TCodeBodySyntax() ' always succeeds
-		Local block:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Eof])
-		Return New TCodeBodySyntax(block)
+	Method ParseCodeBody:TCodeBodySyntaxData() ' always succeeds
+		Local block:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Eof])
+		Return TCodeBodySyntaxData.Create(block)
 	End Method
 	
-	Method ParseCodeBlock:TCodeBlockSyntax(expectedTerminatorKinds:TTokenKind[]) ' always succeeds
+	Method ParseCodeBlock:TCodeBlockSyntaxData(expectedTerminatorKinds:TTokenKind[]) ' always succeeds
 		Rem
 		' this implements some basic "panic mode" error recovery by skipping tokens
 		' the idea is to maintain a stack of scopes (or more specifically, their associated
@@ -587,12 +587,12 @@ Type TParser Implements IParser Final
 		
 		Local skippedTokens:TSyntaxToken[]
 		
-		Local elements:ICodeBlockElementSyntax[]
+		Local elements:ICodeBlockElementSyntaxData[]
 		Repeat
-			Local element:ICodeBlockElementSyntax = ParseCodeBlockElement()
+			Local element:ICodeBlockElementSyntaxData = ParseCodeBlockElement()
 			If element Then
 				If skippedTokens Then
-					elements :+ [New TErrorSyntax(skippedTokens)]
+					elements :+ [TErrorSyntaxData.Create(skippedTokens)]
 					skippedTokens = []
 				End If
 				elements :+ [element]
@@ -609,11 +609,11 @@ Type TParser Implements IParser Final
 		
 		terminatorStack.Pop
 		
-		Return New TCodeBlockSyntax(elements)
+		Return TCodeBlockSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseCodeHeaderElement:ICodeHeaderElementSyntax()
-		Local separator:TStatementSeparatorSyntax = ParseStatementSeparator()
+	Method ParseCodeHeaderElement:ICodeHeaderElementSyntaxData()
+		Local separator:TStatementSeparatorSyntaxData = ParseStatementSeparator()
 		If separator Then
 			Return separator
 		Else
@@ -621,8 +621,8 @@ Type TParser Implements IParser Final
 		End If
 	End Method
 	
-	Method ParseCodeBlockElement:ICodeBlockElementSyntax()
-		Local element:ICodeBlockElementSyntax
+	Method ParseCodeBlockElement:ICodeBlockElementSyntaxData()
+		Local element:ICodeBlockElementSyntaxData
 		element = ParseStatementSeparator();     If element Then Return element
 		element = ParseIncludeDirective();       If element Then Return element
 		element = ParseExternBlock();            If element Then Return element
@@ -631,8 +631,8 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseDeclarationOrStatement:ICodeBlockElementSyntax()
-		Local declarationOrStatement:ICodeBlockElementSyntax
+	Method ParseDeclarationOrStatement:ICodeBlockElementSyntaxData()
+		Local declarationOrStatement:ICodeBlockElementSyntaxData
 		declarationOrStatement = ParseDeclaration(); If declarationOrStatement Then Return declarationOrStatement
 		declarationOrStatement = ParseStatement();   If declarationOrStatement Then Return declarationOrStatement
 		Return Null
@@ -640,8 +640,8 @@ Type TParser Implements IParser Final
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header Directives ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseHeaderDirective:IHeaderDirectiveSyntax()
-		Local headerDirective:IHeaderDirectiveSyntax
+	Method ParseHeaderDirective:IHeaderDirectiveSyntaxData()
+		Local headerDirective:IHeaderDirectiveSyntaxData
 		headerDirective = ParseStrictnessDirective(); If headerDirective Then Return headerDirective
 		headerDirective = ParseModuleDirective();     If headerDirective Then Return headerDirective
 		headerDirective = ParseModuleInfoDirective(); If headerDirective Then Return headerDirective
@@ -650,73 +650,73 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseStrictnessDirective:TStrictnessDirectiveSyntax()
+	Method ParseStrictnessDirective:TStrictnessDirectiveSyntaxData()
 		Local strictness:TSyntaxToken = TryTakeToken([TTokenKind.Strict_, TTokenKind.SuperStrict_])
 		If Not strictness Then Return Null
 		
-		Return New TStrictnessDirectiveSyntax(strictness)
+		Return TStrictnessDirectiveSyntaxData.Create(strictness)
 	End Method
 	
-	Method ParseModuleDirective:TModuleDirectiveSyntax()
+	Method ParseModuleDirective:TModuleDirectiveSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Module_)
 		If Not keyword Then Return Null
 		
-		Local moduleName:TQualifiedNameSyntax = ParseModuleName()
+		Local moduleName:TQualifiedNameSyntaxData = ParseModuleName()
 		If Not moduleName Then
 			ReportError "Expected module name"
 			moduleName = GenerateMissingQualifiedName()
 		End If
 		
-		Return New TModuleDirectiveSyntax(keyword, moduleName)
+		Return TModuleDirectiveSyntaxData.Create(keyword, moduleName)
 	End Method
 	
-	Method ParseModuleInfoDirective:TModuleInfoDirectiveSyntax()
+	Method ParseModuleInfoDirective:TModuleInfoDirectiveSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.ModuleInfo_)
 		If Not keyword Then Return Null
 		
-		Local info:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
+		Local info:TStringLiteralExpressionSyntaxData = ParseStringLiteralExpression()
 		If Not info Then
 			ReportError "Expected module info"
-			info = New TStringLiteralExpressionSyntax(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
+			info = TStringLiteralExpressionSyntaxData.Create(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
 		End If
 		
-		Return New TModuleInfoDirectiveSyntax(keyword, info)
+		Return TModuleInfoDirectiveSyntaxData.Create(keyword, info)
 	End Method
 	
-	Method ParseFrameworkDirective:TFrameworkDirectiveSyntax()
+	Method ParseFrameworkDirective:TFrameworkDirectiveSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Framework_)
 		If Not keyword Then Return Null
 		
-		Local moduleName:TQualifiedNameSyntax = ParseModuleName()
+		Local moduleName:TQualifiedNameSyntaxData = ParseModuleName()
 		If Not moduleName Then
 			ReportError "Expected module name"
 			moduleName = GenerateMissingQualifiedName()
 		End If
 		
-		Return New TFrameworkDirectiveSyntax(keyword, moduleName)
+		Return TFrameworkDirectiveSyntaxData.Create(keyword, moduleName)
 	End Method
 	
-	Method ParseImportDirective:TImportDirectiveSyntax()
+	Method ParseImportDirective:TImportDirectiveSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Import_)
 		If Not keyword Then Return Null
 		
-		Local filePath:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
-		If filePath Then Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(filePath))
+		Local filePath:TStringLiteralExpressionSyntaxData = ParseStringLiteralExpression()
+		If filePath Then Return TImportDirectiveSyntaxData.Create(keyword, TImportSourceSyntaxData.Create(Null, filePath))
 		
-		Local moduleName:TQualifiedNameSyntax = ParseModuleName()
-		If moduleName Then Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(moduleName))
+		Local moduleName:TQualifiedNameSyntaxData = ParseModuleName()
+		If moduleName Then Return TImportDirectiveSyntaxData.Create(keyword, TImportSourceSyntaxData.Create(moduleName, Null))
 		
 		ReportError "Expected file path or module name"
-		Return New TImportDirectiveSyntax(keyword, New TImportSourceSyntax(GenerateMissingQualifiedName()))
+		Return TImportDirectiveSyntaxData.Create(keyword, TImportSourceSyntaxData.Create(GenerateMissingQualifiedName(), Null))
 	End Method
 	
-	Method ParseModuleName:TQualifiedNameSyntax()
+	Method ParseModuleName:TQualifiedNameSyntaxData()
 		Return ParseQualifiedName()
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Include Directive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseIncludeDirective:TIncludeDirectiveSyntax()
+	Method ParseIncludeDirective:TIncludeDirectiveSyntaxData()
 		' Include directives could be expanded during lexing, parsing, or semantic analysis,
 		' each with different advantages and disadvantages
 		'       the advantage of lexing is not having to worry about header vs. body content
@@ -746,10 +746,10 @@ Type TParser Implements IParser Final
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Include_)
 		If Not keyword Then Return Null
 		
-		Local filePath:TStringLiteralExpressionSyntax = ParseStringLiteralExpression()
+		Local filePath:TStringLiteralExpressionSyntaxData = ParseStringLiteralExpression()
 		If Not filePath Then
 			ReportError "Expected file path"
-			filePath = New TStringLiteralExpressionSyntax(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
+			filePath = TStringLiteralExpressionSyntaxData.Create(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
 		End If
 		Local filePathStr:String = filePath.value.lexerToken.value
 		Assert filePathStr.StartsWith("~q") And filePathStr.EndsWith("~q") Else "Quotes missing from string literal"
@@ -773,46 +773,46 @@ Type TParser Implements IParser Final
 		End Function
 		
 		Local parser:TParser = New TParser(CombinePaths(Self.filePath, filePathStr), Self.createLexer)
-		Local body:TCodeBodySyntax = parser.ParseCodeBody()
+		Local body:TCodeBodySyntaxData = parser.ParseCodeBody()
 		Local eofToken:TSyntaxToken = parser.TakeToken(TTokenKind.Eof)
 		For Local error:TParseError = EachIn parser.parseErrors
 			parseErrors.AddLast error
 		Next
 		
-		Return New TIncludeDirectiveSyntax(keyword, filePath, body, eofToken)
+		Return TIncludeDirectiveSyntaxData.Create(keyword, filePath, body, eofToken)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Declarations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseExternBlock:TExternBlockSyntax()
+	Method ParseExternBlock:TExternBlockSyntaxData()
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Extern_)
 		If Not initiatorKeyword Then Return Null
 		
 		Local callingConvention:TSyntaxToken = TryTakeToken(TTokenKind.StringLiteral)
 		
-		Local elements:IExternBlockElementSyntax[]
+		Local elements:IExternBlockElementSyntaxData[]
 		Repeat
 			elements :+ ParseStatementSeparators()
-			Local element:IExternBlockElementSyntax = ParseExternBlockElement()
+			Local element:IExternBlockElementSyntaxData = ParseExternBlockElement()
 			If Not element Then Exit
 			elements :+ [element]
 			' TODO: skip tokens until it is possible to parse an element or End Extern - or possibly the terminator token of a surrounding block?
 		Forever
 		
 		Local terminatorKeyword:TSyntaxToken = TakeToken(TTokenKind.EndExtern_)
-		Return New TExternBlockSyntax(initiatorKeyword, callingConvention, elements, terminatorKeyword)
+		Return TExternBlockSyntaxData.Create(initiatorKeyword, callingConvention, elements, terminatorKeyword)
 	End Method
 	
-	Method ParseExternBlockElement:IExternBlockElementSyntax()
-		Local externBlockElement:IExternBlockElementSyntax
+	Method ParseExternBlockElement:IExternBlockElementSyntaxData()
+		Local externBlockElement:IExternBlockElementSyntaxData
 		'externBlockElement = ParseExternTypeDeclaration();     If externBlockElement Then Return externBlockElement
 		externBlockElement = ParseExternFunctionDeclaration(); If externBlockElement Then Return externBlockElement
 		'externBlockElement = ParseExternVariableDeclaration(); If externBlockElement Then Return externBlockElement
 		Return Null
 	End Method
 	
-	Method ParseDeclaration:IDeclarationSyntax()
-		Local declaration:IDeclarationSyntax
+	Method ParseDeclaration:IDeclarationSyntaxData()
+		Local declaration:IDeclarationSyntaxData
 		
 		declaration = ParseTypeDeclaration();              If declaration Then Return declaration
 		declaration = ParseCallableDeclaration();          If declaration Then Return declaration
@@ -824,14 +824,14 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseTypeDeclaration:TTypeDeclarationSyntax()
-		Local typeDeclaration:TTypeDeclarationSyntax
+	Method ParseTypeDeclaration:TTypeDeclarationSyntaxData()
+		Local typeDeclaration:TTypeDeclarationSyntaxData
 		typeDeclaration = ParseClassOrStructOrInterfaceDeclaration(); If typeDeclaration Then Return typeDeclaration
 		typeDeclaration = ParseEnumDeclaration();                     If typeDeclaration Then Return typeDeclaration
 		Return Null
 	End Method
 	
-	Method ParseClassOrStructOrInterfaceDeclaration:TTypeDeclarationSyntax()
+	Method ParseClassOrStructOrInterfaceDeclaration:TTypeDeclarationSyntaxData()
 		Local kind:ETypeKind
 		Local declarationTokenKind:TTokenKind
 		Local terminatorTokenKind:TTokenKind
@@ -844,18 +844,18 @@ Type TParser Implements IParser Final
 		
 		Local initiatorKeyword:TSyntaxToken = TakeToken(declarationTokenKind)
 		
-		Local name:TNameSyntax = ParseName()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then
 			ReportError "Expected name"
 			name = GenerateMissingName()
 		End If
 		
-		Local typeParameters:TTypeParameterListSyntax = ParseTypeParameterList()
+		Local typeParameters:TTypeParameterListSyntaxData = ParseTypeParameterList()
 		
 		Local extendsKeyword:TSyntaxToken
 		Local implementsKeyword:TSyntaxToken
-		Local superClass:TTypeSyntax
-		Local superInterfaces:TTypeListSyntax
+		Local superClass:TTypeSyntaxData
+		Local superInterfaces:TTypeListSyntaxData
 		
 		Local expectMemberImplementations:Int
 		Select kind
@@ -888,47 +888,47 @@ Type TParser Implements IParser Final
 					superInterfaces = ParseSuperTypeList()
 					If Not superInterfaces Then
 						ReportError "Expected type"
-						superInterfaces = New TTypeListSyntax([])
+						superInterfaces = TTypeListSyntaxData.Create([])
 					End If
 				End If
 			Default RuntimeError "Missing case"
 		End Select
 		
-		Local modifiers:TTypeModifierSyntax[]
+		Local modifiers:TTypeModifierSyntaxData[]
 		Repeat
 			Local modifierToken:TSyntaxToken = TryTakeToken([TTokenKind.Abstract_, TTokenKind.Final_]) ' NoDebug
-			If modifierToken Then modifiers :+ [New TTypeModifierSyntax(modifierToken)] Else Exit
+			If modifierToken Then modifiers :+ [TTypeModifierSyntaxData.Create(modifierToken)] Else Exit
 		Forever
 		
-		Local metaData:TMetaDataSyntax = ParseMetaData()
+		Local metaData:TMetaDataSyntaxData = ParseMetaData()
 		
-		Local members:ICodeBlockElementSyntax[] ' TODO: unify this with the parsing of code blocks, they can also contain visibility modifiers
+		Local members:ICodeBlockElementSyntaxData[] ' TODO: unify this with the parsing of code blocks, they can also contain visibility modifiers
 		Repeat
 			members :+ ParseStatementSeparators()
-			Local member:ICodeBlockElementSyntax = ParseTypeMember(expectMemberImplementations)
+			Local member:ICodeBlockElementSyntaxData = ParseTypeMember(expectMemberImplementations)
 			If member Then members :+ [member] Else Exit
 		Forever
-		Local body:TCodeBlockSyntax = New TCodeBlockSyntax(members)
+		Local body:TCodeBlockSyntaxData = TCodeBlockSyntaxData.Create(members)
 		
 		Local terminatorKeyword:TSyntaxToken = TakeToken(terminatorTokenKind)
 		
 		Select kind
-			Case ETypeKind.Class Return New TClassDeclarationSyntax(initiatorKeyword, name, typeParameters, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
-			Case ETypeKind.Struct_ Return New TStructDeclarationSyntax(initiatorKeyword, name, typeParameters, modifiers, metaData, body, terminatorKeyword)
-			Case ETypeKind.Interface_ Return New TInterfaceDeclarationSyntax(initiatorKeyword, name, typeParameters, extendsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Class Return TClassDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Struct_ Return TStructDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Interface_ Return TInterfaceDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, extendsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
 			Default RuntimeError "Missing case"
 		End Select
 	End Method
 	
-	Method ParseExternClassDeclaration:TExternClassDeclarationSyntax()
+	Method ParseExternClassDeclaration:TExternClassDeclarationSyntaxData()
 		Throw "TODO"
 	End Method
 	
-	Method ParseExternStructDeclaration:TExternTypeDeclarationSyntax()
+	Method ParseExternStructDeclaration:TExternTypeDeclarationSyntaxData()
 		Throw "TODO"
 	End Method
 	
-	Method ParseEnumDeclaration:TTypeDeclarationSyntax()
+	Method ParseEnumDeclaration:TTypeDeclarationSyntaxData()
 		'Local kind:ETypeKind = ETypeKind.Enum_
 		Local declarationTokenKind:TTokenKind = TTokenKind.Enum_
 		Local terminatorTokenKind:TTokenKind = TTokenKind.EndEnum_
@@ -936,48 +936,48 @@ Type TParser Implements IParser Final
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(declarationTokenKind)
 		If Not initiatorKeyword Then Return Null
 		
-		Local name:TNameSyntax = ParseName()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then
 			ReportError "Expected name"
 			name = GenerateMissingName()
 		End If
 		
-		Local baseType:TTypeSyntax = ParseEnumBaseType()
+		Local baseType:TTypeSyntaxData = ParseEnumBaseType()
 		
-		Local flagsKeyword:TContextualKeywordSyntax = ParseContextualKeyword("Flags")
+		Local flagsKeyword:TContextualKeywordSyntaxData = ParseContextualKeyword("Flags")
 		
-		Local metaData:TMetaDataSyntax = ParseMetaData()
+		Local metaData:TMetaDataSyntaxData = ParseMetaData()
 		
-		Local members:IEnumMemberSyntax[]
+		Local members:IEnumMemberSyntaxData[]
 		Repeat
 			members :+ ParseStatementSeparators()
-			Local member:TEnumMemberDeclarationSyntax = ParseEnumMemberDeclaration()
+			Local member:TEnumMemberDeclarationSyntaxData = ParseEnumMemberDeclaration()
 			If member Then members :+ [member] Else Exit
 		Forever
 		
 		Local terminatorKeyword:TSyntaxToken = TakeToken(terminatorTokenKind)
 		
-		Return New TEnumDeclarationSyntax(initiatorKeyword, name, baseType, flagsKeyword, metaData, members, terminatorKeyword)
+		Return TEnumDeclarationSyntaxData.Create(initiatorKeyword, name, baseType, flagsKeyword, metaData, members, terminatorKeyword)
 	End Method
 	
-	Method ParseEnumMemberDeclaration:TEnumMemberDeclarationSyntax()
-		Local name:TNameSyntax = ParseName()
+	Method ParseEnumMemberDeclaration:TEnumMemberDeclarationSyntaxData()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then Return Null
 		
-		Local assignment:TAssignmentSyntax = ParseAssignment(EAssignmentMode.Constant)
+		Local assignment:TAssignmentSyntaxData = ParseAssignment(EAssignmentMode.Constant)
 		
-		Return New TEnumMemberDeclarationSyntax(name, assignment)
+		Return TEnumMemberDeclarationSyntaxData.Create(name, assignment)
 	End Method
 	
-	Method ParseExternTypeDeclaration:TExternTypeDeclarationSyntax()
-		Local externTypeDeclaration:TExternTypeDeclarationSyntax
+	Method ParseExternTypeDeclaration:TExternTypeDeclarationSyntaxData()
+		Local externTypeDeclaration:TExternTypeDeclarationSyntaxData
 		externTypeDeclaration = ParseExternClassDeclaration();  If externTypeDeclaration Then Return externTypeDeclaration
 		externTypeDeclaration = ParseExternStructDeclaration(); If externTypeDeclaration Then Return externTypeDeclaration
 		Return Null
 	End Method
 	
-	Method ParseTypeMember:ICodeBlockElementSyntax(expectImplementation:Int)
-		Local typeMember:ICodeBlockElementSyntax
+	Method ParseTypeMember:ICodeBlockElementSyntaxData(expectImplementation:Int)
+		Local typeMember:ICodeBlockElementSyntaxData
 		typeMember = ParseVisibilityDirective();                               If typeMember Then Return typeMember
 		
 		typeMember = ParseTypeDeclaration();                                   If typeMember Then Return typeMember
@@ -987,28 +987,28 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseExternTypeMember:TExternDeclarationSyntax()
+	Method ParseExternTypeMember:TExternDeclarationSyntaxData()
 		Throw "TODO"
 		
-		Local externTypeMember:TExternDeclarationSyntax
+		Local externTypeMember:TExternDeclarationSyntaxData
 		externTypeMember = ParseExternTypeDeclaration();     If externTypeMember Then Return externTypeMember
 		externTypeMember = ParseExternFunctionDeclaration(); If externTypeMember Then Return externTypeMember
 		externTypeMember = ParseExternVariableDeclaration(); If externTypeMember Then Return externTypeMember
 		Return Null
 	End Method
 	
-	Method ParseVisibilityDirective:TVisibilityDirectiveSyntax()
+	Method ParseVisibilityDirective:TVisibilityDirectiveSyntaxData()
 		Local visibility:TSyntaxToken = TryTakeToken([TTokenKind.Public_, TTokenKind.Protected_, TTokenKind.Private_])
 		If Not visibility Then Return Null
 		
-		Return New TVisibilityDirectiveSyntax(visibility)
+		Return  TVisibilityDirectiveSyntaxData.Create(visibility)
 	End Method
 	
-	Method ParseCallableDeclaration:TCallableDeclarationSyntax()
+	Method ParseCallableDeclaration:TCallableDeclarationSyntaxData()
 		Return ParseTypeMemberCallableDeclaration(True) ' TODO: non-member functions cannot be abstract
 	End Method
 	
-	Method ParseTypeMemberCallableDeclaration:TCallableDeclarationSyntax(expectImplementation:Int)
+	Method ParseTypeMemberCallableDeclaration:TCallableDeclarationSyntaxData(expectImplementation:Int)
 		Local kind:ECallableKind
 		Local declarationTokenKind:TTokenKind
 		Local terminatorTokenKind:TTokenKind
@@ -1022,11 +1022,11 @@ Type TParser Implements IParser Final
 		
 		Local operatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Operator_)
 		
-		Local name:TCallableDeclarationNameSyntax
-		Local typeParameters:TTypeParameterListSyntax
+		Local name:TCallableDeclarationNameSyntaxData
+		Local typeParameters:TTypeParameterListSyntaxData
 		
 		If operatorKeyword Then
-			Local operatorName:TOperatorSyntax
+			Local operatorName:TOperatorSyntaxData
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.Eq])
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.Neq])
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.Lt])
@@ -1048,69 +1048,69 @@ Type TParser Implements IParser Final
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.LBracket, TTokenKind.RBracket, TTokenKind.Eq])
 			If Not operatorName Then operatorName = ParseOperator([TTokenKind.LBracket, TTokenKind.RBracket])
 			If operatorName Then
-				name = New TCallableDeclarationNameSyntax(operatorName)
+				name = TCallableDeclarationNameSyntaxData.Create(Null, Null, operatorName)
 			Else
 				ReportError "Expected overloadable operator"
-				name = New TCallableDeclarationNameSyntax(GenerateMissingName())
+				name = TCallableDeclarationNameSyntaxData.Create(GenerateMissingName(), Null, Null)
 			End If
 		Else
 			Local keywordName:TSyntaxToken = TryTakeToken([TTokenKind.New_, TTokenKind.Delete_])
 			If keywordName Then
-				name = New TCallableDeclarationNameSyntax(keywordName)
+				name = TCallableDeclarationNameSyntaxData.Create(Null, keywordName, Null)
 			Else
-				Local identifierName:TNameSyntax = ParseName()
+				Local identifierName:TNameSyntaxData = ParseName()
 				If identifierName Then
-					name = New TCallableDeclarationNameSyntax(identifierName)
+					name = TCallableDeclarationNameSyntaxData.Create(identifierName, Null, Null)
 				Else
 					ReportError "Expected " + initiatorKeyword.lexerToken.value.ToLower() + " name"
-					name = New TCallableDeclarationNameSyntax(GenerateMissingName())
+					name = TCallableDeclarationNameSyntaxData.Create(GenerateMissingName(), Null, Null)
 				End If
 				
 				typeParameters = ParseTypeParameterList()
 			End If
 		End If
 		
-		Local type_:TTypeSyntax = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
+		Local type_:TTypeSyntaxData = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
 		' generate a void-return-no-parameters type if no type can be parsed;
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
-		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
+			type_ = TTypeSyntaxData.Create(Null, Null, Null, Null, [TCallableTypeSuffixSyntaxData.Create(GenerateMissingToken(TTokenKind.LParen), TVariableDeclarationSyntaxData.Create(Null, [], TVariableDeclaratorListSyntaxData.Create([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntaxData(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, Null, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = TTypeSyntaxData.Create(type_.colon, type_.base, Null, Null, type_.suffixes + [TCallableTypeSuffixSyntaxData.Create(TakeToken(TTokenKind.LParen), TVariableDeclarationSyntaxData.Create(Null, [], TVariableDeclaratorListSyntaxData.Create([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
-		Local modifiers:TCallableModifierSyntax[]
+		Local modifiers:TCallableModifierSyntaxData[]
 		Repeat
 			Local modifierToken:TSyntaxToken = TryTakeToken([TTokenKind.Abstract_, TTokenKind.Final_, TTokenKind.Override_, TTokenKind.Default_, TTokenKind.Inline_]) ' NoDebug
 			If modifierToken Then
-				modifiers :+ [New TCallableModifierSyntax(modifierToken)]
+				modifiers :+ [TCallableModifierSyntaxData.Create(modifierToken)]
 			Else
 				Exit
 			End If
 		Forever
 		
-		Local metaData:TMetaDataSyntax = ParseMetaData()
+		Local metaData:TMetaDataSyntaxData = ParseMetaData()
 		
-		Local body:TCodeBlockSyntax
+		Local body:TCodeBlockSyntaxData
 		Local terminatorKeyword:TSyntaxToken
 		If (expectImplementation And Not ContainsKind(modifiers, TTokenKind.Abstract_)) Or (Not expectImplementation And ContainsKind(modifiers, TTokenKind.Default_)) Then
 			body = ParseCodeBlock([terminatorTokenKind])
 			terminatorKeyword = TakeToken(terminatorTokenKind)
 		End If
 		
-		Return New TCallableDeclarationSyntax(initiatorKeyword, operatorKeyword, name, typeParameters, type_, modifiers, metaData, body, terminatorKeyword)
+		Return TCallableDeclarationSyntaxData.Create(initiatorKeyword, operatorKeyword, name, typeParameters, type_, modifiers, metaData, body, terminatorKeyword)
 		
-		Function ContainsKind:Int(array:TCallableModifierSyntax[], modifierKind:TTokenKind)
-			For Local m:TCallableModifierSyntax = EachIn array
+		Function ContainsKind:Int(array:TCallableModifierSyntaxData[], modifierKind:TTokenKind)
+			For Local m:TCallableModifierSyntaxData = EachIn array
 				If m.token.Kind() = modifierKind Then Return True
 			Next
 			Return False
 		End Function
 	End Method
 	
-	Method ParseExternFunctionDeclaration:TExternFunctionDeclarationSyntax()
+	Method ParseExternFunctionDeclaration:TExternFunctionDeclarationSyntaxData()
 		Local kind:ECallableKind
 		Local declarationTokenKind:TTokenKind
 		Select currentToken.Kind()
@@ -1120,36 +1120,36 @@ Type TParser Implements IParser Final
 		
 		Local initiatorKeyword:TSyntaxToken = TakeToken(declarationTokenKind)
 		
-		Local name:TCallableDeclarationNameSyntax
-		Local identifierName:TNameSyntax = ParseName()
+		Local name:TCallableDeclarationNameSyntaxData
+		Local identifierName:TNameSyntaxData = ParseName()
 		If identifierName Then
-			name = New TCallableDeclarationNameSyntax(identifierName)
+			name = TCallableDeclarationNameSyntaxData.Create(identifierName, Null, Null)
 		Else
 			ReportError "Expected " + initiatorKeyword.lexerToken.value.ToLower() + " name"
-			name = New TCallableDeclarationNameSyntax(GenerateMissingName())
+			name = TCallableDeclarationNameSyntaxData.Create(GenerateMissingName(), Null, Null)
 		End If
 		
 		' TODO type params
 		
-		Local type_:TTypeSyntax = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
+		Local type_:TTypeSyntaxData = ParseVariableDeclaratorType(EArrayDimensionsOption.Disallow)
 		' generate a void-return-no-parameters type if no type can be parsed;
 		' just append an empty parameter list if a type was parsed but it isn't a callable type
 		If Not type_ Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(Null, Null, Null, Null, [New TCallableTypeSuffixSyntax(GenerateMissingToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), GenerateMissingToken(TTokenKind.RParen))])
-		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntax(type_.suffixes[type_.suffixes.length - 1])) Then
+			type_ = TTypeSyntaxData.Create(Null, Null, Null, Null, [TCallableTypeSuffixSyntaxData.Create(GenerateMissingToken(TTokenKind.LParen), TVariableDeclarationSyntaxData.Create(Null, [], TVariableDeclaratorListSyntaxData.Create([]), Null), GenerateMissingToken(TTokenKind.RParen))])
+		Else If Not type_.suffixes Or Not (TCallableTypeSuffixSyntaxData(type_.suffixes[type_.suffixes.length - 1])) Then
 			ReportError "Expected callable type"
-			type_ = New TTypeSyntax(type_.colon, type_.base, Null, Null, type_.suffixes + [New TCallableTypeSuffixSyntax(TakeToken(TTokenKind.LParen), New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
+			type_ = TTypeSyntaxData.Create(type_.colon, type_.base, Null, Null, type_.suffixes + [TCallableTypeSuffixSyntaxData.Create(TakeToken(TTokenKind.LParen), TVariableDeclarationSyntaxData.Create(Null, [], TVariableDeclaratorListSyntaxData.Create([]), Null), TakeToken(TTokenKind.RParen))]) ' TODO: do not use TakeToken here to avoid duplicate errors?
 		End If
 		
-		Local externSignatureAssignment:TExternSignatureAssignmentSyntax = ParseExternSignatureAssignment()
+		Local externSignatureAssignment:TExternSignatureAssignmentSyntaxData = ParseExternSignatureAssignment()
 		
-		Local metaData:TMetaDataSyntax = ParseMetaData()
+		Local metaData:TMetaDataSyntaxData = ParseMetaData()
 		
-		Return New TExternFunctionDeclarationSyntax(initiatorKeyword, name, type_, externSignatureAssignment, metaData)
+		Return TExternFunctionDeclarationSyntaxData.Create(initiatorKeyword, name, type_, externSignatureAssignment, metaData)
 	End Method
 	
-	Method ParseVariableDeclaration:TVariableDeclarationSyntax(acceptedDeclarationKeywords:TTokenKind[], multipleDeclaratorsOption:EMultipleDeclaratorsOption, initializersOption:EInitializersOption)
+	Method ParseVariableDeclaration:TVariableDeclarationSyntaxData(acceptedDeclarationKeywords:TTokenKind[], multipleDeclaratorsOption:EMultipleDeclaratorsOption, initializersOption:EInitializersOption)
 		' always succeeds if acceptedDeclarationKeywords contains Null
 		' if acceptedDeclarationKeywords contains a Null element, a declaration will be accepted without any declaration keyword
 		' in the case of a Const declaration being parsed, initializersOption is ignored and treated as Require
@@ -1177,11 +1177,11 @@ Type TParser Implements IParser Final
 		Next
 		If Not declarationKeyword And Not allowNoDeclarationKeyword Then Return Null
 		
-		Local modifiers:TVariableModifierSyntax[]
+		Local modifiers:TVariableModifierSyntaxData[]
 		Repeat
 			Local modifierToken:TSyntaxToken = TryTakeToken(TTokenKind.ReadOnly_)
 			If modifierToken Then
-				modifiers :+ [New TVariableModifierSyntax(modifierToken)]
+				modifiers :+ [TVariableModifierSyntaxData.Create(modifierToken)]
 			Else
 				Exit
 			End If
@@ -1190,7 +1190,7 @@ Type TParser Implements IParser Final
 			initializersOption = EInitializersOption.Require ' always require an initializer for Const declarations
 		End If
 		
-		Local declarators:TVariableDeclaratorListSyntax
+		Local declarators:TVariableDeclaratorListSyntaxData
 		If multipleDeclaratorsOption = EMultipleDeclaratorsOption.Allow Then
 			declarators = ParseVariableDeclaratorList(initializersOption)
 		Else
@@ -1204,22 +1204,22 @@ Type TParser Implements IParser Final
 			'       name; this would break backwards compatibility, and while unlikely to affect
 			'       existing code since variables names and type names follow different conventions,
 			'       it could lead to unexpected behaviour in case of a misspelled type name
-			Local declarator:TVariableDeclaratorSyntax = ParseVariableDeclarator(initializersOption)
+			Local declarator:TVariableDeclaratorSyntaxData = ParseVariableDeclarator(initializersOption)
 			If declarator Then
-				declarators = New TVariableDeclaratorListSyntax([New TVariableDeclaratorListElementSyntax(Null, declarator)])
+				declarators = TVariableDeclaratorListSyntaxData.Create([TVariableDeclaratorListElementSyntaxData.Create(Null, declarator)])
 			Else
 				ReportError "Expected variable declarator"
-				declarators = New TVariableDeclaratorListSyntax([])
+				declarators = TVariableDeclaratorListSyntaxData.Create([])
 			End If
 		End If
 		
-		Local metaData:TMetaDataSyntax = ParseMetaData() ' TODO: not for locals (except params?)
+		Local metaData:TMetaDataSyntaxData = ParseMetaData() ' TODO: not for locals (except params?)
 		
-		Return New TVariableDeclarationSyntax(declarationKeyword, modifiers, declarators, metaData)
+		Return TVariableDeclarationSyntaxData.Create(declarationKeyword, modifiers, declarators, metaData)
 	End Method
 	
-	Method ParseVariableDeclarator:TVariableDeclaratorSyntax(initializersOption:EInitializersOption)
-		Local name:TNameSyntax = ParseName()
+	Method ParseVariableDeclarator:TVariableDeclaratorSyntaxData(initializersOption:EInitializersOption)
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then Return Null
 		
 		Local arrayDimensionsOption:EArrayDimensionsOption
@@ -1230,19 +1230,19 @@ Type TParser Implements IParser Final
 			Default RuntimeError "Missing case"
 		End Select
 		
-		Local type_:TTypeSyntax = ParseVariableDeclaratorType(arrayDimensionsOption)
+		Local type_:TTypeSyntaxData = ParseVariableDeclaratorType(arrayDimensionsOption)
 		If Not type_ Then
 			ReportError "Expected type"
 		End If
 		
-		Local initializer:TAssignmentSyntax
+		Local initializer:TAssignmentSyntaxData
 		Local typeHasArrayDimensions:Int = type_ And type_.suffixes And HasAnyArrayDimensions(type_.suffixes[type_.suffixes.length - 1])
 		If initializersOption <> EInitializersOption.Disallow And Not typeHasArrayDimensions Then ' dimensions act as an initializer; cannot have both
 			initializer = ParseAssignment(EAssignmentMode.Regular)
 		End If
 		If Not initializer And initializersOption = EInitializersOption.Require Then
 			ReportError "Expected initializer"
-			initializer = New TAssignmentSyntax(New TOperatorSyntax([GenerateMissingToken(TTokenKind.Eq)]), GenerateMissingExpression())
+			initializer = TAssignmentSyntaxData.Create(TOperatorSyntaxData.Create([GenerateMissingToken(TTokenKind.Eq)]), GenerateMissingExpression())
 		End If
 		
 		If Not type_ And Not initializer Then
@@ -1251,73 +1251,73 @@ Type TParser Implements IParser Final
 			' assignment (the type of the variable will later be inferred from the type of the expression)
 		End If
 		
-		Return New TVariableDeclaratorSyntax(name, type_, initializer)
+		Return TVariableDeclaratorSyntaxData.Create(name, type_, initializer)
 	End Method
 	
-	'Method ParseTypeParameterDeclaration:TTypeParameterDeclarationSyntax() ' always succeeds
-	'	Local declarators:TVariableDeclaratorListSyntax = ParseTypeParameterDeclaratorList()
+	'Method ParseTypeParameterDeclaration:TTypeParameterDeclarationSyntaxData() ' always succeeds
+	'	Local declarators:TVariableDeclaratorListSyntaxData = ParseTypeParameterDeclaratorList()
 	'	If Not declarators.elements Then
 	'		ReportError "Expected type parameter declaration"
 	'	End If
 	'	
-	'	Return New TTypeParameterDeclarationSyntax(declarators)
+	'	Return TTypeParameterDeclarationSyntaxData.Create(declarators)
 	'End Method
 	
-	Method ParseTypeParameterDeclarator:TTypeParameterDeclaratorSyntax()
-		Local name:TNameSyntax = ParseName()
+	Method ParseTypeParameterDeclarator:TTypeParameterDeclaratorSyntaxData()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then Return Null
 		
-		Return New TTypeParameterDeclaratorSyntax(name)
+		Return TTypeParameterDeclaratorSyntaxData.Create(name)
 	End Method
 	
-	Method ParseCodeBlockVariableDeclaration:TVariableDeclarationSyntax()
+	Method ParseCodeBlockVariableDeclaration:TVariableDeclarationSyntaxData()
 		Return ParseVariableDeclaration([TTokenKind.Local_, TTokenKind.Global_, TTokenKind.Const_], EMultipleDeclaratorsOption.Allow, EInitializersOption.Allow)
 	End Method
 	
-	Method ParseParameterVariableDeclaration:TVariableDeclarationSyntax()
+	Method ParseParameterVariableDeclaration:TVariableDeclarationSyntaxData()
 		Return ParseVariableDeclaration([TTokenKind(Null)], EMultipleDeclaratorsOption.Allow, EInitializersOption.Allow)
 	End Method
 	
-	Method ParseTypeMemberVariableDeclaration:TVariableDeclarationSyntax()
+	Method ParseTypeMemberVariableDeclaration:TVariableDeclarationSyntaxData()
 		Return ParseVariableDeclaration([TTokenKind.Field_, TTokenKind.Global_, TTokenKind.Const_], EMultipleDeclaratorsOption.Allow, EInitializersOption.Allow)
 	End Method
 	
-	Method ParseForCounterVariableDeclaration:TVariableDeclarationSyntax()
+	Method ParseForCounterVariableDeclaration:TVariableDeclarationSyntaxData()
 		Return ParseVariableDeclaration([TTokenKind.Local_], EMultipleDeclaratorsOption.Disallow, EInitializersOption.Disallow)
 	End Method
 	
-	Method ParseCatchVariableDeclaration:TVariableDeclarationSyntax()
+	Method ParseCatchVariableDeclaration:TVariableDeclarationSyntaxData()
 		Return ParseVariableDeclaration([TTokenKind(Null)], EMultipleDeclaratorsOption.Disallow, EInitializersOption.Disallow)
 	End Method
 	
-	Method ParseExternVariableDeclaration:TExternVariableDeclarationSyntax()
+	Method ParseExternVariableDeclaration:TExternVariableDeclarationSyntaxData()
 		Throw "TODO" ' TODO
 	End Method
 	
-	Method ParseTypeAliasDeclaration:IDeclarationSyntax()
+	Method ParseTypeAliasDeclaration:IDeclarationSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Alias_)
 		If Not keyword Then Return Null
 		
 		Throw "TODO" ' TODO
 	End Method
 	
-	Method ParseLabelDeclaration:TLabelDeclarationSyntax()
+	Method ParseLabelDeclaration:TLabelDeclarationSyntaxData()
 		Local hash:TSyntaxToken = TryTakeToken(TTokenKind.FloatSigil)
 		If Not hash Then Return Null
 		
-		Local name:TNameSyntax = ParseName()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then
 			ReportError "Expected name"
 			name = GenerateMissingName()
 		End If
 		
-		Return New TLabelDeclarationSyntax(hash, name)
+		Return TLabelDeclarationSyntaxData.Create(hash, name)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Statements ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseStatement:IStatementSyntax()
-		Local statement:IStatementSyntax
+	Method ParseStatement:IStatementSyntaxData()
+		Local statement:IStatementSyntaxData
 		
 		statement = ParseIfStatement();              If statement Then Return statement
 		statement = ParseSelectStatement();          If statement Then Return statement
@@ -1346,11 +1346,11 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseIfStatement:TIfStatementSyntax()
+	Method ParseIfStatement:TIfStatementSyntaxData()
 		Local ifKeyword:TSyntaxToken = TryTakeToken(TTokenKind.If_)
 		If Not ifKeyword Then Return Null
 		
-		Local condition:IExpressionSyntax = ParseExpression()
+		Local condition:IExpressionSyntaxData = ParseExpression()
 		If Not condition Then
 			ReportError "Expected expression"
 			condition = GenerateMissingExpression()
@@ -1358,18 +1358,18 @@ Type TParser Implements IParser Final
 		
 		Local thenKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Then_)
 		
-		Local parseIfBranchBody:TCodeBlockSyntax(self_:TParser)
+		Local parseIfBranchBody:TCodeBlockSyntaxData(self_:TParser)
 		Local isSingleLineIf:Int = Not (currentToken.Kind() = TTokenKind.Linebreak Or currentToken.Kind() = TTokenKind.Semicolon)
 		If isSingleLineIf Then
-			Function ParseSingleLineIfBranchBody:TCodeBlockSyntax(self_:TParser)
-				Local blockElements:ICodeBlockElementSyntax[]
+			Function ParseSingleLineIfBranchBody:TCodeBlockSyntaxData(self_:TParser)
+				Local blockElements:ICodeBlockElementSyntaxData[]
 				Repeat
-					Local separator:TStatementSeparatorSyntax = self_.ParseStatementSeparator()
+					Local separator:TStatementSeparatorSyntaxData = self_.ParseStatementSeparator()
 					If separator Then
 						blockElements :+ [separator]
 						If separator.token.Kind() = TTokenKind.Linebreak Then Exit
 					Else
-						Local statement:IStatementSyntax = self_.ParseStatement()
+						Local statement:IStatementSyntaxData = self_.ParseStatement()
 						If statement Then
 							blockElements :+ [statement]
 						Else
@@ -1377,36 +1377,36 @@ Type TParser Implements IParser Final
 						End If
 					End If
 				Forever
-				Return New TCodeBlockSyntax(blockElements)
+				Return TCodeBlockSyntaxData.Create(blockElements)
 			End Function
 			parseIfBranchBody = ParseSingleLineIfBranchBody
 		Else
-			Function ParseMultiLineIfBranchBody:TCodeBlockSyntax(self_:TParser)
+			Function ParseMultiLineIfBranchBody:TCodeBlockSyntaxData(self_:TParser)
 				Return self_.ParseCodeBlock([TTokenKind.Else_, TTokenKind.ElseIf_, TTokenKind.EndIf_])
 			End Function
 			parseIfBranchBody = ParseMultiLineIfBranchBody
 		End If
 		
-		Local thenBody:TCodeBlockSyntax = parseIfBranchBody(Self)
-		Local thenBranch:TThenIfBranchSyntax = New TThenIfBranchSyntax(thenKeyword, thenBody)
+		Local thenBody:TCodeBlockSyntaxData = parseIfBranchBody(Self)
+		Local thenBranch:TThenIfBranchSyntaxData = TThenIfBranchSyntaxData.Create(thenKeyword, thenBody)
 		
-		Local branches:TIfBranchSyntax[] = [thenBranch]
+		Local branches:TIfBranchSyntaxData[] = [thenBranch]
 		Repeat
 			Select currentToken.Kind()
 				Case TTokenKind.ElseIf_
 					Local elseIfKeyword:TSyntaxToken = TakeToken()
-					Local condition:IExpressionSyntax = ParseExpression()
+					Local condition:IExpressionSyntaxData = ParseExpression()
 					If Not condition Then
 						ReportError "Expected expression"
 						condition = GenerateMissingExpression()
 					End If
 					Local thenKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Then_)
-					Local body:TCodeBlockSyntax = parseIfBranchBody(Self)
-					branches :+ [New TElseIfIfBranchSyntax(elseIfKeyword, condition, thenKeyword, body)]
+					Local body:TCodeBlockSyntaxData = parseIfBranchBody(Self)
+					branches :+ [TElseIfIfBranchSyntaxData.Create(elseIfKeyword, condition, thenKeyword, body)]
 				Case TTokenKind.Else_
 					Local elseKeyword:TSyntaxToken = TakeToken()
-					Local body:TCodeBlockSyntax = parseIfBranchBody(Self)
-					branches :+ [New TElseIfBranchSyntax(elseKeyword, body)]
+					Local body:TCodeBlockSyntaxData = parseIfBranchBody(Self)
+					branches :+ [TElseIfBranchSyntaxData.Create(elseKeyword, body)]
 				Default Exit
 			End Select
 		Forever
@@ -1414,77 +1414,77 @@ Type TParser Implements IParser Final
 		Local endIfKeyword:TSyntaxToken
 		If Not isSingleLineIf Then endIfKeyword = TakeToken(TTokenKind.EndIf_)
 		
-		Return New TIfStatementSyntax(ifKeyword, condition, branches, endIfKeyword)
+		Return TIfStatementSyntaxData.Create(ifKeyword, condition, branches, endIfKeyword)
 	End Method
 	
-	Method ParseSelectStatement:TSelectStatementSyntax()
+	Method ParseSelectStatement:TSelectStatementSyntaxData()
 		Local selectKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Select_)
 		If Not selectKeyword Then Return Null
 		
-		Local expression:IExpressionSyntax = ParseExpression()
+		Local expression:IExpressionSyntaxData = ParseExpression()
 		If Not expression Then
 			ReportError "Expected expression"
 			expression = GenerateMissingExpression()
 		End If
 		
-		Local statementSeparators:TStatementSeparatorSyntax[] = ParseStatementSeparators()
+		Local statementSeparators:TStatementSeparatorSyntaxData[] = ParseStatementSeparators()
 		
-		Local branches:TSelectBranchSyntax[]
+		Local branches:TSelectBranchSyntaxData[]
 		Repeat
 			Select currentToken.Kind()
 				Case TTokenKind.Case_
 					Local keyword:TSyntaxToken = TakeToken()
-					Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+					Local expressionList:TExpressionListSyntaxData = ParseExpressionList(EEmptyElementsOption.Disallow)
 					If Not expressionList.elements Then
 						ReportError "Expected expression"
 					End If
-					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])
-					branches :+ [New TCaseSelectBranchSyntax(keyword, expressionList, body)]
+					Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])
+					branches :+ [TCaseSelectBranchSyntaxData.Create(keyword, expressionList, body)]
 				Case TTokenKind.Default_
 					Local keyword:TSyntaxToken = TakeToken()
-					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])
-					branches :+ [New TDefaultSelectBranchSyntax(keyword, body)]
+					Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Case_, TTokenKind.Default_, TTokenKind.EndSelect_])
+					branches :+ [TDefaultSelectBranchSyntaxData.Create(keyword, body)]
 				Default Exit
 			End Select
 		Forever
 		
 		Local endSelectKeyword:TSyntaxToken = TakeToken(TTokenKind.EndSelect_)
 		
-		Return New TSelectStatementSyntax(selectKeyword, expression, statementSeparators, branches, endSelectKeyword)
+		Return TSelectStatementSyntaxData.Create(selectKeyword, expression, statementSeparators, branches, endSelectKeyword)
 	End Method
 	
-	Method ParseForStatement:TForStatementSyntax()
+	Method ParseForStatement:TForStatementSyntaxData()
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.For_)
 		If Not initiatorKeyword Then Return Null
 		
-		Local counter:TForCounterSyntax
-			Local counterDeclaration:TVariableDeclarationSyntax = ParseForCounterVariableDeclaration()
+		Local counter:TForCounterSyntaxData
+			Local counterDeclaration:TVariableDeclarationSyntaxData = ParseForCounterVariableDeclaration()
 		If counterDeclaration Then
-			counter = New TForCounterDeclarationSyntax(counterDeclaration)
+			counter = TForCounterDeclarationSyntaxData.Create(counterDeclaration)
 		Else
-			Local counterExpression:IExpressionSyntax = ParseLValue()
+			Local counterExpression:IExpressionSyntaxData = ParseLValue()
 			If counterExpression Then
-				counter = New TForCounterExpressionSyntax(counterExpression)
+				counter = TForCounterExpressionSyntaxData.Create(counterExpression)
 			Else
 				ReportError "Expected declaration or expression"
-				counter = New TForCounterExpressionSyntax(GenerateMissingExpression())
+				counter = TForCounterExpressionSyntaxData.Create(GenerateMissingExpression())
 			End If
 		End If
 		'
 		'TODO: add expectedTerminators parameter To ParseExpression?
 		Local eq:TSyntaxToken = SkipAndTakeToken(TTokenKind.Eq, StatementSeparatorTokenKinds)
 		
-		Local valueSequence:TForValueSequenceSyntax
+		Local valueSequence:TForValueSequenceSyntaxData
 		If currentToken.Kind() = TTokenKind.EachIn_ Then
 			Local eachInKeyword:TSyntaxToken = TakeToken()
-			Local iterableExpression:IExpressionSyntax = ParseExpression()
+			Local iterableExpression:IExpressionSyntaxData = ParseExpression()
 			If Not iterableExpression Then
 				ReportError "Expected expression"
 				iterableExpression = GenerateMissingExpression()
 			End If
-			valueSequence = New TForEachInValueSequenceSyntax(eachInKeyword, iterableExpression)
+			valueSequence = TForEachInValueSequenceSyntaxData.Create(eachInKeyword, iterableExpression)
 		Else
-			Local expressionAfterEq:IExpressionSyntax = ParseExpression()
+			Local expressionAfterEq:IExpressionSyntaxData = ParseExpression()
 			'Local skippedTokens:TSyntaxToken[]
 			'While Not expressionAfterEq And Not terminatorStack.Contains(currentToken.Kind())
 			'	skippedTokens :+ [TakeToken()]
@@ -1492,7 +1492,7 @@ Type TParser Implements IParser Final
 			'	expressionAfterEq = ParseExpression()
 			'Wend
 			If expressionAfterEq Then
-				Local startExpression:IExpressionSyntax = expressionAfterEq
+				Local startExpression:IExpressionSyntaxData = expressionAfterEq
 				If Not startExpression Then
 					ReportError "Expected expression"
 					startExpression = GenerateMissingExpression()
@@ -1504,54 +1504,54 @@ Type TParser Implements IParser Final
 					keyword = GenerateMissingToken(TTokenKind.To_)
 				End If
 				
-				Local endExpression:IExpressionSyntax = ParseExpression()
+				Local endExpression:IExpressionSyntaxData = ParseExpression()
 				If Not endExpression Then
 					ReportError "Expected expression"
 					endExpression = GenerateMissingExpression()
 				End If
 				
 				Select keyword.Kind()
-					Case TTokenKind.To_    valueSequence = New TForToValueSequenceSyntax(startExpression, keyword, endExpression)
-					Case TTokenKind.Until_ valueSequence = New TForUntilValueSequenceSyntax(startExpression, keyword, endExpression)
+					Case TTokenKind.To_    valueSequence = TForToValueSequenceSyntaxData.Create(startExpression, keyword, endExpression)
+					Case TTokenKind.Until_ valueSequence = TForUntilValueSequenceSyntaxData.Create(startExpression, keyword, endExpression)
 					Default RuntimeError "Missing case"
 				End Select
 			Else
 				ReportError "Expected EachIn or expression"
-				valueSequence = New TForEachInValueSequenceSyntax(GenerateMissingToken(TTokenKind.EachIn_), GenerateMissingExpression())
+				valueSequence = TForEachInValueSequenceSyntaxData.Create(GenerateMissingToken(TTokenKind.EachIn_), GenerateMissingExpression())
 			End If
 		End If
 		
-		Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Next_])
+		Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Next_])
 		
 		Local terminatorKeyword:TSyntaxToken = TakeToken(TTokenKind.Next_)
 				
-		Return New TForStatementSyntax(initiatorKeyword, counter, eq, valueSequence, body, terminatorKeyword)
+		Return TForStatementSyntaxData.Create(initiatorKeyword, counter, eq, valueSequence, body, terminatorKeyword)
 	End Method
 	
-	Method ParseWhileStatement:TWhileStatementSyntax()
+	Method ParseWhileStatement:TWhileStatementSyntaxData()
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.While_)
 		If Not initiatorKeyword Then Return Null
 		
-		Local condition:IExpressionSyntax = ParseExpression()
+		Local condition:IExpressionSyntaxData = ParseExpression()
 		If Not condition Then
 			ReportError "Expected expression"
 			condition = GenerateMissingExpression()
 		End If
 		
-		Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Wend_])
+		Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Wend_])
 		
 		Local terminatorKeyword:TSyntaxToken = TakeToken(TTokenKind.Wend_)
 		
-		Return New TWhileStatementSyntax(initiatorKeyword, condition, body, terminatorKeyword)
+		Return TWhileStatementSyntaxData.Create(initiatorKeyword, condition, body, terminatorKeyword)
 	End Method
 	
-	Method ParseRepeatStatement:IStatementSyntax()
+	Method ParseRepeatStatement:IStatementSyntaxData()
 		Local initiatorKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Repeat_)
 		If Not initiatorKeyword Then Return Null
 		
-		Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Until_, TTokenKind.Forever_])
+		Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Until_, TTokenKind.Forever_])
 		
-		Local terminator:TRepeatTerminatorSyntax
+		Local terminator:TRepeatTerminatorSyntaxData
 		Local terminatorKeyword:TSyntaxToken = TryTakeToken([TTokenKind.Until_, TTokenKind.Forever_])
 		If Not terminatorKeyword Then
 			ReportError "Expected Until or Forever"
@@ -1559,82 +1559,82 @@ Type TParser Implements IParser Final
 		End If
 		Select terminatorKeyword.Kind()
 			Case TTokenKind.Until_
-				Local condition:IExpressionSyntax = ParseExpression()
+				Local condition:IExpressionSyntaxData = ParseExpression()
 				If Not condition Then
 					ReportError "Expected expression"
 					condition = GenerateMissingExpression()
 				End If
-				terminator = New TRepeatUntilTerminatorSyntax(terminatorKeyword, condition)
+				terminator = TRepeatUntilTerminatorSyntaxData.Create(terminatorKeyword, condition)
 			Case TTokenKind.Forever_
-				terminator = New TRepeatForeverTerminatorSyntax(terminatorKeyword)
+				terminator = TRepeatForeverTerminatorSyntaxData.Create(terminatorKeyword)
 			Default RuntimeError "Missing case"
 		End Select
 		
-		Return New TRepeatStatementSyntax(initiatorKeyword, body, terminator)
+		Return TRepeatStatementSyntaxData.Create(initiatorKeyword, body, terminator)
 	End Method
 	
-	Method ParseExitStatement:TExitStatementSyntax()
+	Method ParseExitStatement:TExitStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Exit_)
 		If Not keyword Then Return Null
 		
-		Local labelName:TNameSyntax = ParseName()
+		Local labelName:TNameSyntaxData = ParseName()
 		
-		Return New TExitStatementSyntax(keyword, labelName)
+		Return TExitStatementSyntaxData.Create(keyword, labelName)
 	End Method
 	
-	Method ParseContinueStatement:TContinueStatementSyntax()
+	Method ParseContinueStatement:TContinueStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Continue_)
 		If Not keyword Then Return Null
 		
-		Local labelName:TNameSyntax = ParseName()
+		Local labelName:TNameSyntaxData = ParseName()
 		
-		Return New TContinueStatementSyntax(keyword, labelName)
+		Return TContinueStatementSyntaxData.Create(keyword, labelName)
 	End Method
 	
-	Method ParseGotoStatement:TGotoStatementSyntax()
+	Method ParseGotoStatement:TGotoStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Goto_)
 		If Not keyword Then Return Null
 		
-		Local labelName:TNameSyntax = ParseName()
+		Local labelName:TNameSyntaxData = ParseName()
 		If Not labelName Then
 			ReportError "Expected label name"
 			labelName = GenerateMissingName()
 		End If
 		
-		Return New TGotoStatementSyntax(keyword, labelName)
+		Return TGotoStatementSyntaxData.Create(keyword, labelName)
 	End Method
 	
-	Method ParseReturnStatement:TReturnStatementSyntax()
+	Method ParseReturnStatement:TReturnStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Return_)
 		If Not keyword Then Return Null
 		
-		Local expression:IExpressionSyntax = ParseExpression()
+		Local expression:IExpressionSyntaxData = ParseExpression()
 		
-		Return New TReturnStatementSyntax(keyword, expression)
+		Return TReturnStatementSyntaxData.Create(keyword, expression)
 	End Method
 	
-	Method ParseTryStatement:TTryStatementSyntax()
+	Method ParseTryStatement:TTryStatementSyntaxData()
 		Local tryKeyword:TSyntaxToken = TryTakeToken(TTokenKind.Try_)
 		If Not tryKeyword Then Return Null
 		
-		Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
+		Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
 		
-		Local branches:TTryBranchSyntax[]
+		Local branches:TTryBranchSyntaxData[]
 		Repeat
 			Select currentToken.Kind()
 				Case TTokenKind.Catch_
 					Local keyword:TSyntaxToken = TakeToken()
-					Local declaration:TVariableDeclarationSyntax = ParseCatchVariableDeclaration()
+					Local declaration:TVariableDeclarationSyntaxData = ParseCatchVariableDeclaration()
 					If Not declaration Then
 						ReportError "Expected variable declaration"
-						declaration = New TVariableDeclarationSyntax(Null, [], New TVariableDeclaratorListSyntax([New TVariableDeclaratorListElementSyntax(Null, New TVariableDeclaratorSyntax(GenerateMissingName(), Null, Null))]), Null)
+						declaration = TVariableDeclarationSyntaxData.Create(Null, [], TVariableDeclaratorListSyntaxData.Create([TVariableDeclaratorListElementSyntaxData.Create(Null, TVariableDeclaratorSyntaxData.Create(GenerateMissingName(), Null, Null))]), Null)
 					End If
-					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
-					branches :+ [New TCatchTryBranchSyntax(keyword, declaration, body)]
+					Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
+					branches :+ [TCatchTryBranchSyntaxData.Create(keyword, declaration, body)]
 				Case TTokenKind.Finally_
 					Local keyword:TSyntaxToken = TakeToken()
-					Local body:TCodeBlockSyntax = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
-					branches :+ [New TFinallyTryBranchSyntax(keyword, body)]
+					Local body:TCodeBlockSyntaxData = ParseCodeBlock([TTokenKind.Catch_, TTokenKind.Finally_, TTokenKind.EndTry_])
+					branches :+ [TFinallyTryBranchSyntaxData.Create(keyword, body)]
 				Default Exit
 			End Select
 		Forever
@@ -1642,27 +1642,27 @@ Type TParser Implements IParser Final
 		
 		Local endTryKeyword:TSyntaxToken = TakeToken(TTokenKind.EndTry_)
 				
-		Return New TTryStatementSyntax(tryKeyword, body, branches, endTryKeyword)
+		Return TTryStatementSyntaxData.Create(tryKeyword, body, branches, endTryKeyword)
 	End Method
 	
-	Method ParseThrowStatement:TThrowStatementSyntax()
+	Method ParseThrowStatement:TThrowStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Throw_)
 		If Not keyword Then Return Null
 		
-		Local expression:IExpressionSyntax = ParseExpression()
+		Local expression:IExpressionSyntaxData = ParseExpression()
 		If Not expression Then
 			ReportError "Expected expression"
 			expression = GenerateMissingExpression()
 		End If
 		
-		Return New TThrowStatementSyntax(keyword, expression)
+		Return TThrowStatementSyntaxData.Create(keyword, expression)
 	End Method
 	
-	Method ParseAssertStatement:TAssertStatementSyntax()
+	Method ParseAssertStatement:TAssertStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Assert_)
 		If Not keyword Then Return Null
 		
-		Local expression:IExpressionSyntax = ParseExpression()
+		Local expression:IExpressionSyntaxData = ParseExpression()
 		If Not expression Then
 			ReportError "Expected expression"
 			expression = GenerateMissingExpression()
@@ -1674,162 +1674,162 @@ Type TParser Implements IParser Final
 			commaOrElse = GenerateMissingToken(TTokenKind.Else_)
 		End If
 		
-		Local message:TStringLiteralExpressionSyntax
+		Local message:TStringLiteralExpressionSyntaxData
 		If Not message Then
 			ReportError "Expected comma or Else"
-			message = New TStringLiteralExpressionSyntax(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
+			message = TStringLiteralExpressionSyntaxData.Create(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
 		End If
 		
-		Return New TAssertStatementSyntax(keyword, expression, commaOrElse, message)
+		Return TAssertStatementSyntaxData.Create(keyword, expression, commaOrElse, message)
 	End Method
 	
-	Method ParseEndStatement:TEndStatementSyntax()
+	Method ParseEndStatement:TEndStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.End_)
 		If Not keyword Then Return Null
 		
-		Return New TEndStatementSyntax(keyword)
+		Return TEndStatementSyntaxData.Create(keyword)
 	End Method
 	
-	Method ParseNativeCodeStatement:TNativeCodeStatementSyntax()
+	Method ParseNativeCodeStatement:TNativeCodeStatementSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.NativeCode)
 		If Not token Then Return Null
 		
-		Return New TNativeCodeStatementSyntax(token)
+		Return TNativeCodeStatementSyntaxData.Create(token)
 	End Method
 	
-	Method ParseDefDataStatement:TDefDataStatementSyntax()
+	Method ParseDefDataStatement:TDefDataStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.DefData_)
 		If Not keyword Then Return Null
 		
-		Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+		Local expressionList:TExpressionListSyntaxData = ParseExpressionList(EEmptyElementsOption.Disallow)
 		
-		Return New TDefDataStatementSyntax(keyword, expressionList)
+		Return TDefDataStatementSyntaxData.Create(keyword, expressionList)
 	End Method
 	
-	Method ParseReadDataStatement:TReadDataStatementSyntax()
+	Method ParseReadDataStatement:TReadDataStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.ReadData_)
 		If Not keyword Then Return Null
 		
-		Local expressionList:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Disallow)
+		Local expressionList:TExpressionListSyntaxData = ParseExpressionList(EEmptyElementsOption.Disallow)
 		
-		Return New TReadDataStatementSyntax(keyword, expressionList)
+		Return TReadDataStatementSyntaxData.Create(keyword, expressionList)
 	End Method
 	
-	Method ParseRestoreDataStatement:TRestoreDataStatementSyntax()
+	Method ParseRestoreDataStatement:TRestoreDataStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.RestoreData_)
 		If Not keyword Then Return Null
 		
-		Local labelName:TNameSyntax = ParseName()
+		Local labelName:TNameSyntaxData = ParseName()
 		If Not labelName Then
 			ReportError "Expected label name"
 			labelName = GenerateMissingName()
 		End If
 		
-		Return New TRestoreDataStatementSyntax(keyword, labelName)
+		Return TRestoreDataStatementSyntaxData.Create(keyword, labelName)
 	End Method
 	
-	Method ParseReleaseStatement:TReleaseStatementSyntax()
+	Method ParseReleaseStatement:TReleaseStatementSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.Release_)
 		If Not keyword Then Return Null
 		
-		Local handleExpression:IExpressionSyntax = ParseExpression()
+		Local handleExpression:IExpressionSyntaxData = ParseExpression()
 		If Not handleExpression Then
 			ReportError "Expected expression"
 			handleExpression = GenerateMissingExpression()
 		End If
 		
-		Return New TReleaseStatementSyntax(keyword, handleExpression)
+		Return TReleaseStatementSyntaxData.Create(keyword, handleExpression)
 	End Method
 	
-	Method ParseExpressionBasedStatement:IStatementSyntax()
+	Method ParseExpressionBasedStatement:IStatementSyntaxData()
 		' TODO: expensive backtracking here, improve
 		' the order of these here is very important, see below
-		Local expressionBasedStatement:IStatementSyntax
+		Local expressionBasedStatement:IStatementSyntaxData
 		expressionBasedStatement = ParseAssignmentStatement();    If expressionBasedStatement Then Return expressionBasedStatement
 		expressionBasedStatement = ParseParenlessCallStatement(); If expressionBasedStatement Then Return expressionBasedStatement
 		expressionBasedStatement = ParseExpressionStatement();    If expressionBasedStatement Then Return expressionBasedStatement
 		Return Null
 	End Method
 	
-	Method ParseAssignmentStatement:TAssignmentStatementSyntax() ' backtracks
+	Method ParseAssignmentStatement:TAssignmentStatementSyntaxData() ' backtracks
 		' this method parses code constructs whose first part would also be accepted by ParseParenlessCallStatement,
 		' so in any context where both are valid, this method must be called first
 		Local state:SParserState = SaveState()
 		
-		Local target:IExpressionSyntax = ParseLValue()
+		Local target:IExpressionSyntaxData = ParseLValue()
 		If Not target Then Return Null
 		
-		Local assignment:TAssignmentSyntax = ParseAssignment(EAssignmentMode.RegularOrCompound)
+		Local assignment:TAssignmentSyntaxData = ParseAssignment(EAssignmentMode.RegularOrCompound)
 		If Not assignment Then
 			RestoreState state
 			Return Null
 		End If
 		
-		Return New TAssignmentStatementSyntax(target, assignment)
+		Return TAssignmentStatementSyntaxData.Create(target, assignment)
 	End Method
 	
-	Method ParseLValue:IExpressionSyntax()
+	Method ParseLValue:IExpressionSyntaxData()
 		' this must not attempt to parse a relational expression, otherwise there will be no = left over for the assignment
 		Return ParsePostfixCompatibleExpression(False) ' TODO: exclude call expressions
 	End Method
 	
-	Method ParseParenlessCallStatement:TParenlessCallStatementSyntax() ' backtracks
+	Method ParseParenlessCallStatement:TParenlessCallStatementSyntaxData() ' backtracks
 		' this method accepts code constructs whose first part would also be accepted by ParseExpressionStatement,
 		' so in any context where both are valid, this method must be called first
 		Local state:SParserState = SaveState()
 		
-		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression(True)
+		Local expression:IExpressionSyntaxData = ParsePostfixCompatibleExpression(True)
 		If Not expression Then Return Null
 		
 		If Not IsValidExpressionType(expression) Then
 			RestoreState state
 			Return Null
 		End If
-		Function IsValidExpressionType:Int(expression:IExpressionSyntax)
-			If TMemberAccessExpressionSyntax(expression) Then Return True
-			If TIndexExpressionSyntax(expression) Then Return True
-			If TTypeApplicationExpressionSyntax(expression) Then Return True
-			'If TTypeAssertionExpressionSyntax(expression) Then Return Return IsValidType(TTypeAssertionExpressionSyntax(expression).expression)
-			If TParenExpressionSyntax(expression) Then Return IsValidExpressionType(TParenExpressionSyntax(expression).expression)
-			If TNameExpressionSyntax(expression) Then Return True
+		Function IsValidExpressionType:Int(expression:IExpressionSyntaxData)
+			If TMemberAccessExpressionSyntaxData(expression) Then Return True
+			If TIndexExpressionSyntaxData(expression) Then Return True
+			If TTypeApplicationExpressionSyntaxData(expression) Then Return True
+			'If TTypeAssertionExpressionSyntaxData(expression) Then Return Return IsValidType(TTypeAssertionExpressionSyntaxData(expression).expression)
+			If TParenExpressionSyntaxData(expression) Then Return IsValidExpressionType(TParenExpressionSyntaxData(expression).expression)
+			If TNameExpressionSyntaxData(expression) Then Return True
 			Return False
 		End Function
 		
-		Local callOperator:TExpressionListSyntax = ParseExpressionList(EEmptyElementsOption.Allow)
+		Local callOperator:TExpressionListSyntaxData = ParseExpressionList(EEmptyElementsOption.Allow)
 		
-		Return New TParenlessCallStatementSyntax(expression, callOperator)
+		Return TParenlessCallStatementSyntaxData.Create(expression, callOperator)
 	End Method
 	
-	Method ParseExpressionStatement:TExpressionStatementSyntax() ' backtracks
+	Method ParseExpressionStatement:TExpressionStatementSyntaxData() ' backtracks
 		Local state:SParserState = SaveState()
 		
-		Local expression:IExpressionSyntax = ParsePostfixCompatibleExpression(False)
+		Local expression:IExpressionSyntaxData = ParsePostfixCompatibleExpression(False)
 		If Not expression Then Return Null
-		Assert Not (TMemberAccessExpressionSyntax(expression) Or TIndexExpressionSyntax(expression) Or TTypeApplicationExpressionSyntax(expression)) Else "ParseExpressionStatement parsed an expression type that should have been parsed by ParseParenlessCallStatement" '  Or TTypeAssertionExpressionSyntax
+		Assert Not (TMemberAccessExpressionSyntaxData(expression) Or TIndexExpressionSyntaxData(expression) Or TTypeApplicationExpressionSyntaxData(expression)) Else "ParseExpressionStatement parsed an expression type that should have been parsed by ParseParenlessCallStatement" '  Or TTypeAssertionExpressionSyntaxData
 		
 		If Not IsValidExpressionType(expression) Then
 			RestoreState state
 			Return Null
 		End If
-		Function IsValidExpressionType:Int(expression:IExpressionSyntax)
-			If TCallExpressionSyntax(expression) Then Return True
-			If TNewExpressionSyntax(expression) Then Return True
-			If TParenExpressionSyntax(expression) Then Return IsValidExpressionType(TParenExpressionSyntax(expression).expression)
+		Function IsValidExpressionType:Int(expression:IExpressionSyntaxData)
+			If TCallExpressionSyntaxData(expression) Then Return True
+			If TNewExpressionSyntaxData(expression) Then Return True
+			If TParenExpressionSyntaxData(expression) Then Return IsValidExpressionType(TParenExpressionSyntaxData(expression).expression)
 			Return False
 		End Function
 		
-		Return New TExpressionStatementSyntax(expression)
+		Return TExpressionStatementSyntaxData.Create(expression)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Expressions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseExpression:IExpressionSyntax()
+	Method ParseExpression:IExpressionSyntaxData()
 		Return ParseRangeCompatibleExpression()
 	End Method
 	
 	Rem
-	Method SkipAndParseExpression:IExpressionSyntax(expectedTerminatorKinds:TTokenKind[])
-		Local expression:IExpressionSyntax = ParseExpression()
+	Method SkipAndParseExpression:IExpressionSyntaxData(expectedTerminatorKinds:TTokenKind[])
+		Local expression:IExpressionSyntaxData = ParseExpression()
 		If Not expression Then
 			Local state:SParserState = SaveState()
 			Local skippedTokens:TSyntaxToken[]
@@ -1845,7 +1845,7 @@ Type TParser Implements IParser Final
 					Next
 					leadingTrivia :+ token.leadingTrivia
 					TODO: ' how to attach skipped trivia to the first token of the expression?
-					'token = New TSyntaxToken(token.lexerToken, leadingTrivia, token.trailingTrivia)
+					'token = TSyntaxToken.Create(token.lexerToken, leadingTrivia, token.trailingTrivia)
 				End If
 			Else
 				RestoreState state
@@ -1855,7 +1855,7 @@ Type TParser Implements IParser Final
 	End Method
 	End Rem
 	
-	Method ParseRangeCompatibleExpression:IRangeCompatibleExpressionSyntax()
+	Method ParseRangeCompatibleExpression:IRangeCompatibleExpressionSyntaxData()
 		' TODO: even if it means breaking backwards compatibility, this should probably have higher
 		'       precedence than logical and relational operators
 		'       relational operators other than = and <> should not be supported by ranges,
@@ -1864,7 +1864,7 @@ Type TParser Implements IParser Final
 		'       code with that change would be pretty low
 		
 		' the range operator is unique in that its operands are optional
-		Local lhs:IRangeCompatibleExpressionSyntax
+		Local lhs:IRangeCompatibleExpressionSyntaxData
 		If currentToken.Kind() <> TTokenKind.DotDot Then
 			lhs = ParseOrCompatibleExpression()
 			If Not lhs Then Return Null
@@ -1872,67 +1872,67 @@ Type TParser Implements IParser Final
 		' lhs may be Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.DotDot])
 			If op Then
-				Local rhs:IOrCompatibleExpressionSyntax = ParseOrCompatibleExpression()
+				Local rhs:IOrCompatibleExpressionSyntaxData = ParseOrCompatibleExpression()
 				' rhs may be Null
 				
-				lhs = New TRangeExpressionSyntax(lhs, op, rhs)
+				lhs = TRangeExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseOrCompatibleExpression:IOrCompatibleExpressionSyntax()
-		Local lhs:IOrCompatibleExpressionSyntax = ParseAndCompatibleExpression()
+	Method ParseOrCompatibleExpression:IOrCompatibleExpressionSyntaxData()
+		Local lhs:IOrCompatibleExpressionSyntaxData = ParseAndCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Or_])
 			If op Then
-				Local rhs:IAndCompatibleExpressionSyntax = ParseAndCompatibleExpression()
+				Local rhs:IAndCompatibleExpressionSyntaxData = ParseAndCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TOrExpressionSyntax(lhs, op, rhs)
+				lhs = TOrExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseAndCompatibleExpression:IAndCompatibleExpressionSyntax()
-		Local lhs:IAndCompatibleExpressionSyntax = ParseRelationalCompatibleExpression()
+	Method ParseAndCompatibleExpression:IAndCompatibleExpressionSyntaxData()
+		Local lhs:IAndCompatibleExpressionSyntaxData = ParseRelationalCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.And_])
 			If op Then
-				Local rhs:IRelationalCompatibleExpressionSyntax = ParseRelationalCompatibleExpression()
+				Local rhs:IRelationalCompatibleExpressionSyntaxData = ParseRelationalCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TAndExpressionSyntax(lhs, op, rhs)
+				lhs = TAndExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseRelationalCompatibleExpression:IRelationalCompatibleExpressionSyntax()
-		Local lhs:IRelationalCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+	Method ParseRelationalCompatibleExpression:IRelationalCompatibleExpressionSyntaxData()
+		Local lhs:IRelationalCompatibleExpressionSyntaxData = ParseUnionCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Eq])
 			If Not op Then op = ParseOperator([TTokenKind.Neq])
 			If Not op Then op = ParseOperator([TTokenKind.Lt])
@@ -1940,13 +1940,13 @@ Type TParser Implements IParser Final
 			If Not op Then op = ParseOperator([TTokenKind.Leq])
 			If Not op Then op = ParseOperator([TTokenKind.Geq])
 			If op Then
-				Local rhs:IUnionCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+				Local rhs:IUnionCompatibleExpressionSyntaxData = ParseUnionCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TRelationalExpressionSyntax(lhs, op, rhs)
+				lhs = TRelationalExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
@@ -1958,8 +1958,8 @@ Type TParser Implements IParser Final
 	' application, so that in case of an error, the result (error message and recovery) will be
 	' as close as possible to the intended meaning
 	Rem
-	Method ParseRelationalCompatibleExpression:IRelationalCompatibleExpressionSyntax()
-		Local lhs:IRelationalCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+	Method ParseRelationalCompatibleExpression:IRelationalCompatibleExpressionSyntaxData()
+		Local lhs:IRelationalCompatibleExpressionSyntaxData = ParseUnionCompatibleExpression()
 		If Not lhs Then Return Null
 		'a<b>
 		'a<b<c>
@@ -1985,7 +1985,7 @@ Type TParser Implements IParser Final
 				unmatchedLt = 0
 			End If
 			
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Eq])
 			If Not op Then op = ParseOperator([TTokenKind.Neq])
 			If Not op Then op = ParseOperator([TTokenKind.Lt])
@@ -1995,13 +1995,13 @@ Type TParser Implements IParser Final
 			If op Then
 				If opIsGt And unmatchedLt Then
 					' type arguments can only appear after an identifier
-					Local expressionBeforeLt:IExpressionSyntax = lhs
+					Local expressionBeforeLt:IExpressionSyntaxData = lhs
 					For Local i:Int = 1 To pendingLt
-						expressionBeforeLt = TRelationalExpressionSyntax(expressionBeforeLt).lhs
+						expressionBeforeLt = TRelationalExpressionSyntaxData(expressionBeforeLt).lhs
 					Next
-					If (TNameExpressionSyntax(expressionBeforeLt) Or TMemberAccessExpressionSyntax(expressionBeforeLt)) Then
+					If (TNameExpressionSyntaxData(expressionBeforeLt) Or TMemberAccessExpressionSyntaxData(expressionBeforeLt)) Then
 						RestoreState state
-						Local typeApplicationExpression:TTypeApplicationExpressionSyntax = ParseTypeApplicationExpression(IPostfixCompatibleExpressionSyntax(expressionBeforeLt))
+						Local typeApplicationExpression:TTypeApplicationExpressionSyntaxData = ParseTypeApplicationExpression(IPostfixCompatibleExpressionSyntaxData(expressionBeforeLt))
 						If typeApplicationExpression Then
 							lhs = ParsePostfixCompatibleExpression(typeApplicationExpression)
 							'state = SaveState()
@@ -2013,13 +2013,13 @@ Type TParser Implements IParser Final
 					End If
 				End If
 				
-				Local rhs:IUnionCompatibleExpressionSyntax = ParseUnionCompatibleExpression()
+				Local rhs:IUnionCompatibleExpressionSyntaxData = ParseUnionCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TRelationalExpressionSyntax(lhs, op, rhs)
+				lhs = TRelationalExpressionSyntaxData.Create(lhs, op, rhs)
 				
 				'previousOpWasLt = opIsLt
 			Else
@@ -2029,77 +2029,77 @@ Type TParser Implements IParser Final
 	End Method
 	End Rem
 	
-	Method ParseUnionCompatibleExpression:IUnionCompatibleExpressionSyntax()
-		Local lhs:IUnionCompatibleExpressionSyntax = ParseIntersectionCompatibleExpression()
+	Method ParseUnionCompatibleExpression:IUnionCompatibleExpressionSyntaxData()
+		Local lhs:IUnionCompatibleExpressionSyntaxData = ParseIntersectionCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.BitOr])
 			If Not op Then op = ParseOperator([TTokenKind.BitNot])
 			If op Then
-				Local rhs:IIntersectionCompatibleExpressionSyntax = ParseIntersectionCompatibleExpression()
+				Local rhs:IIntersectionCompatibleExpressionSyntaxData = ParseIntersectionCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TUnionExpressionSyntax(lhs, op, rhs)
+				lhs = TUnionExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseIntersectionCompatibleExpression:IIntersectionCompatibleExpressionSyntax()
-		Local lhs:IIntersectionCompatibleExpressionSyntax = ParseSumCompatibleExpression()
+	Method ParseIntersectionCompatibleExpression:IIntersectionCompatibleExpressionSyntaxData()
+		Local lhs:IIntersectionCompatibleExpressionSyntaxData = ParseSumCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.BitAnd])
 			If op Then
-				Local rhs:ISumCompatibleExpressionSyntax = ParseSumCompatibleExpression()
+				Local rhs:ISumCompatibleExpressionSyntaxData = ParseSumCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TIntersectionExpressionSyntax(lhs, op, rhs)
+				lhs = TIntersectionExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseSumCompatibleExpression:ISumCompatibleExpressionSyntax()
-		Local lhs:ISumCompatibleExpressionSyntax = ParseProductCompatibleExpression()
+	Method ParseSumCompatibleExpression:ISumCompatibleExpressionSyntaxData()
+		Local lhs:ISumCompatibleExpressionSyntaxData = ParseProductCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Plus])
 			If Not op Then op = ParseOperator([TTokenKind.Minus])
 			If op Then
-				Local rhs:IProductCompatibleExpressionSyntax = ParseProductCompatibleExpression()
+				Local rhs:IProductCompatibleExpressionSyntaxData = ParseProductCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TSumExpressionSyntax(lhs, op, rhs)
+				lhs = TSumExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseProductCompatibleExpression:IProductCompatibleExpressionSyntax()
-		Local lhs:IProductCompatibleExpressionSyntax = ParseExponentialCompatibleExpression()
+	Method ParseProductCompatibleExpression:IProductCompatibleExpressionSyntaxData()
+		Local lhs:IProductCompatibleExpressionSyntaxData = ParseExponentialCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Mul])
 			If Not op Then op = ParseOperator([TTokenKind.Div])
 			If Not op Then op = ParseOperator([TTokenKind.Mod_])
@@ -2107,42 +2107,42 @@ Type TParser Implements IParser Final
 			If Not op Then op = ParseOperator([TTokenKind.Shr_])
 			If Not op Then op = ParseOperator([TTokenKind.Sar_])
 			If op Then
-				Local rhs:IExponentialCompatibleExpressionSyntax = ParseExponentialCompatibleExpression()
+				Local rhs:IExponentialCompatibleExpressionSyntaxData = ParseExponentialCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TProductExpressionSyntax(lhs, op, rhs)
+				lhs = TProductExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParseExponentialCompatibleExpression:IExponentialCompatibleExpressionSyntax()
-		Local lhs:IExponentialCompatibleExpressionSyntax = ParsePrefixCompatibleExpression()
+	Method ParseExponentialCompatibleExpression:IExponentialCompatibleExpressionSyntaxData()
+		Local lhs:IExponentialCompatibleExpressionSyntaxData = ParsePrefixCompatibleExpression()
 		If Not lhs Then Return Null
 		
 		Repeat
-			Local op:TOperatorSyntax
+			Local op:TOperatorSyntaxData
 			If Not op Then op = ParseOperator([TTokenKind.Pow])
 			If op Then
-				Local rhs:IPrefixCompatibleExpressionSyntax = ParsePrefixCompatibleExpression()
+				Local rhs:IPrefixCompatibleExpressionSyntaxData = ParsePrefixCompatibleExpression()
 				If Not rhs Then
 					ReportError "Expected expression"
 					rhs = GenerateMissingExpression()
 				End If
 				
-				lhs = New TExponentialExpressionSyntax(lhs, op, rhs)
+				lhs = TExponentialExpressionSyntaxData.Create(lhs, op, rhs)
 			Else
 				Return lhs
 			End If
 		Forever
 	End Method
 	
-	Method ParsePrefixCompatibleExpression:IPrefixCompatibleExpressionSyntax()
-		Local op:TOperatorSyntax
+	Method ParsePrefixCompatibleExpression:IPrefixCompatibleExpressionSyntaxData()
+		Local op:TOperatorSyntaxData
 		If Not op Then op = ParseOperator([TTokenKind.Plus])
 		If Not op Then op = ParseOperator([TTokenKind.Minus])
 		If Not op Then op = ParseOperator([TTokenKind.BitNot])
@@ -2153,16 +2153,16 @@ Type TParser Implements IParser Final
 		If Not op Then op = ParseOperator([TTokenKind.SizeOf_])
 		If Not op Then op = ParseOperator([TTokenKind.Varptr_])
 		If op Then
-			Local arg:IPrefixCompatibleExpressionSyntax = ParsePrefixCompatibleExpression()
+			Local arg:IPrefixCompatibleExpressionSyntaxData = ParsePrefixCompatibleExpression()
 			If Not arg Then
 				' TODO: is there a better way to handle this kind of error (skip the operator)?
 				ReportError "Expected expression"
 				arg = GenerateMissingExpression()
 			End If
 			
-			Return New TPrefixOperatorExpressionSyntax(op, arg)
+			Return TPrefixOperatorExpressionSyntaxData.Create(op, arg)
 		Else
-			Local castExpression:TTypeCastExpressionSyntax = ParseTypeCastExpression()
+			Local castExpression:TTypeCastExpressionSyntaxData = ParseTypeCastExpression()
 			If castExpression Then
 				Return castExpression
 			Else
@@ -2171,12 +2171,12 @@ Type TParser Implements IParser Final
 		End If
 	End Method
 	
-	Method ParseTypeCastExpression:TTypeCastExpressionSyntax()
+	Method ParseTypeCastExpression:TTypeCastExpressionSyntaxData()
 		Local state:SParserState = SaveState()
 		
-		Local targetType:TTypeSyntax = ParseTypeCastType()
+		Local targetType:TTypeSyntaxData = ParseTypeCastType()
 		If Not targetType Then Return Null
-		If Not TKeywordTypeBaseSyntax(targetType.base) And Not targetType.suffixes Then
+		If Not TKeywordTypeBaseSyntaxData(targetType.base) And Not targetType.suffixes Then
 			' casts to types that begin with keywords (e.g.: Object x) are unambiguous,
 			' and so are casts to types with a suffix (e.g.: T Ptr x), but casts to
 			' non-keyword non-suffix types (e.g. T x) are syntactically indistinguishable from
@@ -2192,25 +2192,25 @@ Type TParser Implements IParser Final
 			Return Null
 		End If
 		
-		Local arg:IPrefixCompatibleExpressionSyntax = ParsePrefixCompatibleExpression()
+		Local arg:IPrefixCompatibleExpressionSyntaxData = ParsePrefixCompatibleExpression()
 		If Not arg Then
 			ReportError "Expected expression"
 			arg = GenerateMissingExpression()
 		End If
 		
-		Return New TTypeCastExpressionSyntax(targetType, arg)
+		Return TTypeCastExpressionSyntaxData.Create(targetType, arg)
 	End Method
 	
-	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax(parenlessCallStatement:Int)
-		Local arg:IPostfixCompatibleExpressionSyntax = ParsePrimaryExpression()
+	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntaxData(parenlessCallStatement:Int)
+		Local arg:IPostfixCompatibleExpressionSyntaxData = ParsePrimaryExpression()
 		If Not arg Then arg = ParseMemberAccessExpression(Null) ' global scope access (leading dot)
 		If Not arg Then Return Null
 		
 		Return ParsePostfixCompatibleExpression(arg, parenlessCallStatement)
 	End Method
 	
-	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int)
-		Local postfixExpression:IPostfixCompatibleExpressionSyntax
+	Method ParsePostfixCompatibleExpression:IPostfixCompatibleExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData, parenlessCallStatement:Int)
+		Local postfixExpression:IPostfixCompatibleExpressionSyntaxData
 		postfixExpression = ParseMemberAccessExpression(arg);    If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
 		postfixExpression = ParseIndexExpression(arg);           If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
 		If Not parenlessCallStatement Then
@@ -2221,44 +2221,44 @@ Type TParser Implements IParser Final
 		Return arg
 	End Method
 		
-	Method ParseMemberAccessExpression:TMemberAccessExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
+	Method ParseMemberAccessExpression:TMemberAccessExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData)
 		Local dot:TSyntaxToken = TryTakeToken(TTokenKind.Dot)
 		If Not dot Then Return Null
 		
-		Local memberName:TNameSyntax = ParseName()
+		Local memberName:TNameSyntaxData = ParseName()
 		If Not memberName Then
 			ReportError "Expected member name"
 			memberName = GenerateMissingName()
 		End If
 		
-		Return New TMemberAccessExpressionSyntax(arg, dot, memberName)
+		Return TMemberAccessExpressionSyntaxData.Create(arg, dot, memberName)
 	End Method
 	
-	Method ParseIndexExpression:TIndexExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
-		Local indexOperator:TBracketExpressionListSyntax = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
+	Method ParseIndexExpression:TIndexExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData)
+		Local indexOperator:TBracketExpressionListSyntaxData = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
 		If Not indexOperator Then Return Null
 		
-		Return New TIndexExpressionSyntax(arg, indexOperator)
+		Return TIndexExpressionSyntaxData.Create(arg, indexOperator)
 	End Method
 	
-	Method ParseCallExpression:TCallExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
-		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(EEmptyElementsOption.Allow)
+	Method ParseCallExpression:TCallExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData)
+		Local callOperator:TParenExpressionListSyntaxData = ParseParenExpressionList(EEmptyElementsOption.Allow)
 		If Not callOperator Then Return Null
 		
-		Return New TCallExpressionSyntax(arg, callOperator)
+		Return TCallExpressionSyntaxData.Create(arg, callOperator)
 	End Method
 	
 	' older implementation   v
 	Rem
-	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax) ' backtracks
-		If Not (TNameExpressionSyntax(arg) Or TMemberAccessExpressionSyntax(arg)) Then
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData) ' backtracks
+		If Not (TNameExpressionSyntaxData(arg) Or TMemberAccessExpressionSyntaxData(arg)) Then
 			Return Null ' type arguments can only appear after an identifier
 		End If
 		
 		Local state:SParserState = SaveState()
 		
 		Local errorsBefore:Int = parseErrors.Count()
-		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		Local typeApplicationOperator:TTypeArgumentListSyntaxData = ParseTypeArgumentList()
 		If Not typeApplicationOperator Then Return Null
 		Local errorsAfter:Int = parseErrors.Count()
 		If errorsBefore <> errorsAfter Then
@@ -2305,25 +2305,25 @@ Type TParser Implements IParser Final
 			Return Null
 		End If
 		
-		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
+		Return TTypeApplicationExpressionSyntaxData.Create(arg, typeApplicationOperator)
 	End Method
 	End Rem
 	Rem
-	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax) ' always succeeds
-		Assert TNameExpressionSyntax(arg) Or TMemberAccessExpressionSyntax(arg) Else "???"
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData) ' always succeeds
+		Assert TNameExpressionSyntaxData(arg) Or TMemberAccessExpressionSyntaxData(arg) Else "???"
 		
-		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		Local typeApplicationOperator:TTypeArgumentListSyntaxData = ParseTypeArgumentList()
 		
-		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
+		Return TTypeApplicationExpressionSyntaxData.Create(arg, typeApplicationOperator)
 	End Method
 	End Rem
-	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax, parenlessCallStatement:Int) ' backtracks
+	Method ParseTypeApplicationExpression:TTypeApplicationExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData, parenlessCallStatement:Int) ' backtracks
 		If Not CanBeFollowedByTypeApplication(arg) Then Return Null
-		Function CanBeFollowedByTypeApplication:Int(arg:IExpressionSyntax)
+		Function CanBeFollowedByTypeApplication:Int(arg:IExpressionSyntaxData)
 			' type arguments can only be applied to names, not arbitrary expressions
-			If TNameExpressionSyntax(arg) Then Return True
-			If TMemberAccessExpressionSyntax(arg) Then Return True
-			If TParenExpressionSyntax(arg) Then Return CanBeFollowedByTypeApplication(TParenExpressionSyntax(arg).expression)
+			If TNameExpressionSyntaxData(arg) Then Return True
+			If TMemberAccessExpressionSyntaxData(arg) Then Return True
+			If TParenExpressionSyntaxData(arg) Then Return CanBeFollowedByTypeApplication(TParenExpressionSyntaxData(arg).expression)
 			Return False
 		End Function
 		
@@ -2332,7 +2332,7 @@ Type TParser Implements IParser Final
 		Local state:SParserState = SaveState()
 		
 		Local errorsBefore:Int = parseErrors.Count()
-		Local typeApplicationOperator:TTypeArgumentListSyntax = ParseTypeArgumentList()
+		Local typeApplicationOperator:TTypeArgumentListSyntaxData = ParseTypeArgumentList()
 		If Not typeApplicationOperator Then Return Null
 		Local errorsAfter:Int = parseErrors.Count()
 		If errorsBefore <> errorsAfter Then
@@ -2343,8 +2343,8 @@ Type TParser Implements IParser Final
 			Return Null
 		End If
 		Rem
-		Function HasMissingTokens:Int(s:ISyntax)
-			For Local child:ISyntaxOrSyntaxToken = EachIn s.GetChildren()
+		Function HasMissingTokens:Int(s:ISyntaxData)
+			For Local child:ISyntaxDataOrSyntaxToken = EachIn s.GetChildren()
 				Local token:TSyntaxToken = TSyntaxToken(child)
 				If token Then
 					If token.lexerToken.missing Then
@@ -2354,7 +2354,7 @@ Type TParser Implements IParser Final
 						End Select
 					End If
 				Else
-					If HasMissingTokens(ISyntax(child)) Then Return True
+					If HasMissingTokens(ISyntaxData(child)) Then Return True
 				End If
 			Next
 			Return False
@@ -2411,15 +2411,15 @@ Type TParser Implements IParser Final
 			End Function
 		End If
 		
-		Return New TTypeApplicationExpressionSyntax(arg, typeApplicationOperator)
+		Return TTypeApplicationExpressionSyntaxData.Create(arg, typeApplicationOperator)
 	End Method
 	
-	Method ParseTypeAssertionExpression:TTypeAssertionExpressionSyntax(arg:IPostfixCompatibleExpressionSyntax)
+	Method ParseTypeAssertionExpression:TTypeAssertionExpressionSyntaxData(arg:IPostfixCompatibleExpressionSyntaxData)
 		Throw "TODO"
 	End Method
 	
-	Method ParsePrimaryExpression:IPrimaryExpressionSyntax()
-		Local primaryExpression:IPrimaryExpressionSyntax
+	Method ParsePrimaryExpression:IPrimaryExpressionSyntaxData()
+		Local primaryExpression:IPrimaryExpressionSyntaxData
 		primaryExpression = ParseParenExpression();   If primaryExpression Then Return primaryExpression
 		primaryExpression = ParseNewExpression();     If primaryExpression Then Return primaryExpression
 		primaryExpression = ParseSelfExpression();    If primaryExpression Then Return primaryExpression
@@ -2434,11 +2434,11 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParseParenExpression:TParenExpressionSyntax()
+	Method ParseParenExpression:TParenExpressionSyntaxData()
 		Local lparen:TSyntaxToken = TryTakeToken(TTokenKind.LParen)
 		If Not lparen Then Return Null
 		
-		Local innerExpression:IExpressionSyntax = ParseExpression()
+		Local innerExpression:IExpressionSyntaxData = ParseExpression()
 		If Not innerExpression Then
 			ReportError "Expected expression"
 			innerExpression = GenerateMissingExpression()
@@ -2446,113 +2446,113 @@ Type TParser Implements IParser Final
 		
 		Local rparen:TSyntaxToken = TakeToken(TTokenKind.RParen)
 		
-		Return New TParenExpressionSyntax(lparen, innerExpression, rparen)
+		Return TParenExpressionSyntaxData.Create(lparen, innerExpression, rparen)
 	End Method
 	
-	Method ParseNewExpression:TNewExpressionSyntax()
+	Method ParseNewExpression:TNewExpressionSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken(TTokenKind.New_)
 		If Not keyword Then Return Null
 		
-		Local type_:TTypeSyntax = ParseNewConstructibleType()
+		Local type_:TTypeSyntaxData = ParseNewConstructibleType()
 		If Not type_ Then
 			ReportError "Expected type"
 			type_ = GenerateMissingType()
 		End If
 		
-		Local callOperator:TParenExpressionListSyntax = ParseParenExpressionList(EEmptyElementsOption.Allow)
+		Local callOperator:TParenExpressionListSyntaxData = ParseParenExpressionList(EEmptyElementsOption.Allow)
 				
-		Return New TNewExpressionSyntax(keyword, type_, callOperator)
+		Return TNewExpressionSyntaxData.Create(keyword, type_, callOperator)
 	End Method
 	
-	Method ParseSelfExpression:TSelfExpressionSyntax()
+	Method ParseSelfExpression:TSelfExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Self_)
 		If Not token Then Return Null
 		
-		Return New TSelfExpressionSyntax(token)
+		Return TSelfExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParseSuperExpression:TSuperExpressionSyntax()
+	Method ParseSuperExpression:TSuperExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Super_)
 		If Not token Then Return Null
 		
-		Return New TSuperExpressionSyntax(token)
+		Return TSuperExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParseNullExpression:TNullExpressionSyntax()
+	Method ParseNullExpression:TNullExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Null_)
 		If Not token Then Return Null
 		
-		Return New TNullExpressionSyntax(token)
+		Return TNullExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParseTrueExpression:TTrueExpressionSyntax()
+	Method ParseTrueExpression:TTrueExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.True_)
 		If Not token Then Return Null
 		
-		Return New TTrueExpressionSyntax(token)
+		Return TTrueExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParseFalseExpression:TFalseExpressionSyntax()
+	Method ParseFalseExpression:TFalseExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.False_)
 		If Not token Then Return Null
 		
-		Return New TFalseExpressionSyntax(token)
+		Return TFalseExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParsePiExpression:TPiExpressionSyntax()
+	Method ParsePiExpression:TPiExpressionSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Pi_)
 		If Not token Then Return Null
 		
-		Return New TPiExpressionSyntax(token)
+		Return TPiExpressionSyntaxData.Create(token)
 	End Method
 	
-	Method ParseNameExpression:TNameExpressionSyntax()
-		Local name:TNameSyntax = ParseName()
+	Method ParseNameExpression:TNameExpressionSyntaxData()
+		Local name:TNameSyntaxData = ParseName()
 		If Not name Then Return Null
 		
-		Return New TNameExpressionSyntax(name)
+		Return TNameExpressionSyntaxData.Create(name)
 	End Method
 	
-	Method ParseLiteralExpression:TLiteralExpressionSyntax()
-		Local literalExpression:TLiteralExpressionSyntax
+	Method ParseLiteralExpression:TLiteralExpressionSyntaxData()
+		Local literalExpression:TLiteralExpressionSyntaxData
 		literalExpression = ParseArrayLiteralExpression();   If literalExpression Then Return literalExpression
 		literalExpression = ParseNumericLiteralExpression(); If literalExpression Then Return literalExpression
 		literalExpression = ParseStringLiteralExpression();  If literalExpression Then Return literalExpression
 		Return Null
 	End Method
 	
-	Method ParseNumericLiteralExpression:TNumericLiteralExpressionSyntax()
+	Method ParseNumericLiteralExpression:TNumericLiteralExpressionSyntaxData()
 		Local value:TSyntaxToken = TryTakeToken([TTokenKind.IntLiteral, TTokenKind.HexIntLiteral, TTokenKind.BinIntLiteral, TTokenKind.FloatLiteral])
 		If Not value Then Return Null
 		
-		Local type_:TTypeSyntax = ParseLiteralExpressionType()
+		Local type_:TTypeSyntaxData = ParseLiteralExpressionType()
 		
-		Return New TNumericLiteralExpressionSyntax(value, type_)
+		Return TNumericLiteralExpressionSyntaxData.Create(value, type_)
 	End Method
 	
-	Method ParseStringLiteralExpression:TStringLiteralExpressionSyntax()
+	Method ParseStringLiteralExpression:TStringLiteralExpressionSyntaxData()
 		Local value:TSyntaxToken = TryTakeToken(TTokenKind.StringLiteral)
 		If Not value Then Return Null
 		
-		Local type_:TTypeSyntax = ParseLiteralExpressionType()
+		Local type_:TTypeSyntaxData = ParseLiteralExpressionType()
 		
-		Return New TStringLiteralExpressionSyntax(value, type_)
+		Return TStringLiteralExpressionSyntaxData.Create(value, type_)
 	End Method
 	
-	Method ParseArrayLiteralExpression:TArrayLiteralExpressionSyntax()
-		Local elementList:TBracketExpressionListSyntax = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
+	Method ParseArrayLiteralExpression:TArrayLiteralExpressionSyntaxData()
+		Local elementList:TBracketExpressionListSyntaxData = ParseBracketExpressionList(EEmptyElementsOption.Disallow)
 		If Not elementList Then Return Null
 		
-		Return New TArrayLiteralExpressionSyntax(elementList)
+		Return TArrayLiteralExpressionSyntaxData.Create(elementList)
 	End Method
 	
-	Method ParseConstantExpression:IExpressionSyntax()
+	Method ParseConstantExpression:IExpressionSyntaxData()
 		Return ParseExpression()
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Types ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseType:TTypeSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' backtracks
+	Method ParseType:TTypeSyntaxData(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' backtracks
 		' TODO: improve code, hard to understand
 		Assert Not (colonTypeMode = EColonTypeMode.Colon And typeParseMode = ETypeParseMode.Noncommittal) Else "Cannot combine Colon and Noncommittal"
 		
@@ -2565,7 +2565,7 @@ Type TParser Implements IParser Final
 		End If
 		
 		Local allowSigilTypeBase:Int = colonTypeMode = EColonTypeMode.Colon
-		Local base:TTypeBaseSyntax
+		Local base:TTypeBaseSyntaxData
 		If colonTypeMode = EColonTypeMode.Colon And Not colon Then
 			base = ParseSigilTypeBase()
 		Else
@@ -2580,7 +2580,7 @@ Type TParser Implements IParser Final
 			End If
 		Else If colon And Not base Then
 			ReportError "Expected type" ' base stays null ' TODO: better message?
-		Else If TSigilTypeBaseSyntax(base) And Not allowSigilTypeBase Then
+		Else If TSigilTypeBaseSyntaxData(base) And Not allowSigilTypeBase Then
 			If typeParseMode = ETypeParseMode.Committal Then
 				ReportError "Expected non-sigil type" ' base stays as-is ' TODO: better message?
 			Else
@@ -2589,13 +2589,13 @@ Type TParser Implements IParser Final
 			End If
 		End If
 		
-		Local marshallingModifier:TTypeMarshallingModifierSyntax
-		If TSigilTypeBaseSyntax(base) And TSigilTypeBaseSyntax(base).sigil.Kind() = TTokenKind.StringSigil Then
+		Local marshallingModifier:TTypeMarshallingModifierSyntaxData
+		If TSigilTypeBaseSyntaxData(base) And TSigilTypeBaseSyntaxData(base).sigil.Kind() = TTokenKind.StringSigil Then
 			marshallingModifier = ParseTypeMarshallingModifier()
 		End If
 		
-		Local typeArgumentList:TTypeArgumentListSyntax
-		If TQualifiedNameTypeBaseSyntax(base) Then
+		Local typeArgumentList:TTypeArgumentListSyntaxData
+		If TQualifiedNameTypeBaseSyntaxData(base) Then
 			If typeParseMode = ETypeParseMode.Noncommittal Then
 				If currentToken.Kind() = TTokenKind.Lt Then
 					Local state:SParserState = SaveState()
@@ -2612,13 +2612,13 @@ Type TParser Implements IParser Final
 			End If
 		End If
 		
-		Local suffixes:TTypeSuffixSyntax[]
+		Local suffixes:TTypeSuffixSyntaxData[]
 		Assert Not (typeParseMode = ETypeParseMode.Noncommittal And callableTypeOption = ECallableTypeOption.Allow) Else "Cannot combine ECallableTypeOption.Allow and Noncommittal"
 		If currentToken.Kind() <> TTokenKind.Lt Then
 			Repeat
 				Local stateBeforeSuffix:SParserState
 				If typeParseMode = ETypeParseMode.Noncommittal Then stateBeforeSuffix = SaveState()
-				Local suffix:TTypeSuffixSyntax = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)
+				Local suffix:TTypeSuffixSyntaxData = ParseTypeSuffix(callableTypeOption, arrayDimensionsOption)
 				If suffix Then
 					If HasAnyArrayDimensions(suffix) Then
 						If arrayDimensionsOption = EArrayDimensionsOption.Disallow Then
@@ -2640,46 +2640,46 @@ Type TParser Implements IParser Final
 			Forever
 		End If
 		
-		Return New TTypeSyntax(colon, base, marshallingModifier, typeArgumentList, suffixes)
+		Return TTypeSyntaxData.Create(colon, base, marshallingModifier, typeArgumentList, suffixes)
 	End Method
 	
-	Method ParseSuperType:TTypeSyntax()
+	Method ParseSuperType:TTypeSyntaxData()
 		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseSuperTypeList:TTypeListSyntax()
+	Method ParseSuperTypeList:TTypeListSyntaxData()
 		Return ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseEnumBaseType:TTypeSyntax()
+	Method ParseEnumBaseType:TTypeSyntaxData()
 		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseVariableDeclaratorType:TTypeSyntax(arrayDimensionsOption:EArrayDimensionsOption)
+	Method ParseVariableDeclaratorType:TTypeSyntaxData(arrayDimensionsOption:EArrayDimensionsOption)
 		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Allow, arrayDimensionsOption)
 	End Method
 	
-	Method ParseTypeCastType:TTypeSyntax()
+	Method ParseTypeCastType:TTypeSyntaxData()
 		Return ParseType(ETypeParseMode.Noncommittal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseNewConstructibleType:TTypeSyntax()
+	Method ParseNewConstructibleType:TTypeSyntaxData()
 		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Require)
 	End Method
 	
-	Method ParseLiteralExpressionType:TTypeSyntax()
+	Method ParseLiteralExpressionType:TTypeSyntaxData()
 		Return ParseType(ETypeParseMode.Committal, EColonTypeMode.Colon, ECallableTypeOption.Disallow, EArrayDimensionsOption.Disallow)
 	End Method
 	
-	Method ParseTypeBase:TTypeBaseSyntax()
-		Local typeBase:TTypeBaseSyntax
+	Method ParseTypeBase:TTypeBaseSyntaxData()
+		Local typeBase:TTypeBaseSyntaxData
 		typeBase = ParseQualifiedNameTypeBase(); If typeBase Then Return typeBase
 		typeBase = ParseKeywordTypeBase();       If typeBase Then Return typeBase
 		typeBase = ParseSigilTypeBase();         If typeBase Then Return typeBase
 		Return Null
 	End Method
 	
-	Method ParseKeywordTypeBase:TKeywordTypeBaseSyntax()
+	Method ParseKeywordTypeBase:TKeywordTypeBaseSyntaxData()
 		Local keyword:TSyntaxToken = TryTakeToken([ ..
 			TTokenKind.Byte_, ..
 			TTokenKind.Short_, ..
@@ -2701,10 +2701,10 @@ Type TParser Implements IParser Final
 		])
 		If Not keyword Then Return Null
 		
-		Return New TKeywordTypeBaseSyntax(keyword)
+		Return TKeywordTypeBaseSyntaxData.Create(keyword)
 	End Method
 	
-	Method ParseSigilTypeBase:TSigilTypeBaseSyntax()
+	Method ParseSigilTypeBase:TSigilTypeBaseSyntaxData()
 		Local sigil:TSyntaxToken = TryTakeToken([ ..
 			TTokenKind.ByteSigil, ..
 			TTokenKind.IntSigil, ..
@@ -2714,37 +2714,37 @@ Type TParser Implements IParser Final
 		])
 		If Not sigil Then Return Null
 		
-		Return New TSigilTypeBaseSyntax(sigil)
+		Return TSigilTypeBaseSyntaxData.Create(sigil)
 	End Method
 	
-	Method ParseQualifiedNameTypeBase:TQualifiedNameTypeBaseSyntax()
-		Local name:TQualifiedNameSyntax = ParseQualifiedName()
+	Method ParseQualifiedNameTypeBase:TQualifiedNameTypeBaseSyntaxData()
+		Local name:TQualifiedNameSyntaxData = ParseQualifiedName()
 		If Not name Then Return Null
 		
-		Return New TQualifiedNameTypeBaseSyntax(name)
+		Return TQualifiedNameTypeBaseSyntaxData.Create(name)
 	End Method
 	
-	Method ParseTypeMarshallingModifier:TTypeMarshallingModifierSyntax()
-		Local modifier:TTypeMarshallingModifierSyntax
+	Method ParseTypeMarshallingModifier:TTypeMarshallingModifierSyntaxData()
+		Local modifier:TTypeMarshallingModifierSyntaxData
 		modifier = ParseCStringTypeMarshallingModifier(); If modifier Then Return modifier
 		modifier = ParseWStringTypeMarshallingModifier(); If modifier Then Return modifier
 		Return Null
 	End Method
 	
-	Method ParseCStringTypeMarshallingModifier:TCStringTypeMarshallingModifierSyntax()
-		Local keyword:TContextualKeywordSyntax = ParseContextualKeyword("z")
-		If keyword Then Return New TCStringTypeMarshallingModifierSyntax(keyword)
+	Method ParseCStringTypeMarshallingModifier:TCStringTypeMarshallingModifierSyntaxData()
+		Local keyword:TContextualKeywordSyntaxData = ParseContextualKeyword("z")
+		If keyword Then Return TCStringTypeMarshallingModifierSyntaxData.Create(keyword)
 		Return Null
 	End Method
 	
-	Method ParseWStringTypeMarshallingModifier:TWStringTypeMarshallingModifierSyntax()
-		Local keyword:TContextualKeywordSyntax = ParseContextualKeyword("w")
-		If keyword Then Return New TWStringTypeMarshallingModifierSyntax(keyword)
+	Method ParseWStringTypeMarshallingModifier:TWStringTypeMarshallingModifierSyntaxData()
+		Local keyword:TContextualKeywordSyntaxData = ParseContextualKeyword("w")
+		If keyword Then Return TWStringTypeMarshallingModifierSyntaxData.Create(keyword)
 		Return Null
 	End Method
 	
-	Method ParseTypeSuffix:TTypeSuffixSyntax(callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption)		
-		Local typeSuffix:TTypeSuffixSyntax
+	Method ParseTypeSuffix:TTypeSuffixSyntaxData(callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption)		
+		Local typeSuffix:TTypeSuffixSyntaxData
 		If callableTypeOption = ECallableTypeOption.Allow Then
 			typeSuffix = ParseCallableTypeSuffix(); If typeSuffix Then Return typeSuffix
 		End If
@@ -2754,21 +2754,21 @@ Type TParser Implements IParser Final
 		Return Null
 	End Method
 	
-	Method ParsePtrTypeSuffix:TPtrTypeSuffixSyntax()
+	Method ParsePtrTypeSuffix:TPtrTypeSuffixSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Ptr_)
 		If Not token Then Return Null
 		
-		Return New TPtrTypeSuffixSyntax(token)
+		Return TPtrTypeSuffixSyntaxData.Create(token)
 	End Method
 	
-	Method ParseVarTypeSuffix:TVarTypeSuffixSyntax()
+	Method ParseVarTypeSuffix:TVarTypeSuffixSyntaxData()
 		Local token:TSyntaxToken = TryTakeToken(TTokenKind.Var_)
 		If Not token Then Return Null
 		
-		Return New TVarTypeSuffixSyntax(token)
+		Return TVarTypeSuffixSyntaxData.Create(token)
 	End Method
 	
-	Method ParseArrayTypeSuffix:TArrayTypeSuffixSyntax(arrayDimensionsOption:EArrayDimensionsOption)
+	Method ParseArrayTypeSuffix:TArrayTypeSuffixSyntaxData(arrayDimensionsOption:EArrayDimensionsOption)
 		' will not fail if arrayDimensionsOption is violated; only report errors
 		Local lbracket:TSyntaxToken = TryTakeToken(TTokenKind.LBracket)
 		If Not lbracket Then Return Null
@@ -2780,35 +2780,35 @@ Type TParser Implements IParser Final
 			Case EArrayDimensionsOption.Require  emptyElementsOption = EEmptyElementsOption.Disallow
 			Default RuntimeError "Missing case"
 		End Select
-		Local dimensionsList:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
+		Local dimensionsList:TExpressionListSyntaxData = ParseExpressionList(emptyElementsOption)
 		
 		Local rbracket:TSyntaxToken = TakeToken(TTokenKind.RBracket)
 		
-		Return New TArrayTypeSuffixSyntax(lbracket, dimensionsList, rbracket)
+		Return TArrayTypeSuffixSyntaxData.Create(lbracket, dimensionsList, rbracket)
 	End Method
 	
-	Method ParseCallableTypeSuffix:TCallableTypeSuffixSyntax()
+	Method ParseCallableTypeSuffix:TCallableTypeSuffixSyntaxData()
 		Local lparen:TSyntaxToken = TryTakeToken(TTokenKind.LParen)
 		If Not lparen Then Return Null
 		
-		Local parameterDeclaration:TVariableDeclarationSyntax = ParseParameterVariableDeclaration()
+		Local parameterDeclaration:TVariableDeclarationSyntaxData = ParseParameterVariableDeclaration()
 		
 		Local rparen:TSyntaxToken = TakeToken(TTokenKind.RParen)
 		
-		Return New TCallableTypeSuffixSyntax(lparen, parameterDeclaration, rparen)
+		Return TCallableTypeSuffixSyntaxData.Create(lparen, parameterDeclaration, rparen)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Auxiliary Constructs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	Method ParseVariableDeclaratorList:TVariableDeclaratorListSyntax(initializersOption:EInitializersOption) ' always succeeds
-		Local elements:TVariableDeclaratorListElementSyntax[]
+	Method ParseVariableDeclaratorList:TVariableDeclaratorListSyntaxData(initializersOption:EInitializersOption) ' always succeeds
+		Local elements:TVariableDeclaratorListElementSyntaxData[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
 				comma = TryTakeToken(TTokenKind.Comma)
 				If Not comma Then Exit
 			End If
-			Local declarator:TVariableDeclaratorSyntax = ParseVariableDeclarator(initializersOption)
+			Local declarator:TVariableDeclaratorSyntaxData = ParseVariableDeclarator(initializersOption)
 			If Not declarator Then
 				If Not elements Then
 					Exit
@@ -2816,20 +2816,20 @@ Type TParser Implements IParser Final
 					ReportError "Expected variable declarator"
 				End If
 			End If
-			elements :+ [New TVariableDeclaratorListElementSyntax(comma, declarator)]
+			elements :+ [TVariableDeclaratorListElementSyntaxData.Create(comma, declarator)]
 		Forever
-		Return New TVariableDeclaratorListSyntax(elements)
+		Return TVariableDeclaratorListSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseTypeParameterDeclaratorList:TTypeParameterDeclaratorListSyntax() ' always succeeds
-		Local elements:TTypeParameterDeclaratorListElementSyntax[]
+	Method ParseTypeParameterDeclaratorList:TTypeParameterDeclaratorListSyntaxData() ' always succeeds
+		Local elements:TTypeParameterDeclaratorListElementSyntaxData[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
 				comma = TryTakeToken(TTokenKind.Comma)
 				If Not comma Then Exit
 			End If
-			Local declarator:TTypeParameterDeclaratorSyntax = ParseTypeParameterDeclarator()
+			Local declarator:TTypeParameterDeclaratorSyntaxData = ParseTypeParameterDeclarator()
 			If Not declarator Then
 				If Not elements Then
 					Exit
@@ -2837,42 +2837,42 @@ Type TParser Implements IParser Final
 					ReportError "Expected type variable declarator"
 				End If
 			End If
-			elements :+ [New TTypeParameterDeclaratorListElementSyntax(comma, declarator)]
+			elements :+ [TTypeParameterDeclaratorListElementSyntaxData.Create(comma, declarator)]
 		Forever
-		Return New TTypeParameterDeclaratorListSyntax(elements)
+		Return TTypeParameterDeclaratorListSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseParenExpressionList:TParenExpressionListSyntax(emptyElementsOption:EEmptyElementsOption)
+	Method ParseParenExpressionList:TParenExpressionListSyntaxData(emptyElementsOption:EEmptyElementsOption)
 		Local lparen:TSyntaxToken = TryTakeToken(TTokenKind.LParen)
 		If Not lparen Then Return Null
 		
-		Local list:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
+		Local list:TExpressionListSyntaxData = ParseExpressionList(emptyElementsOption)
 		
 		Local rparen:TSyntaxToken = TakeToken(TTokenKind.RParen)
 		
-		Return New TParenExpressionListSyntax(lparen, list, rparen)
+		Return TParenExpressionListSyntaxData.Create(lparen, list, rparen)
 	End Method
 	
-	Method ParseBracketExpressionList:TBracketExpressionListSyntax(emptyElementsOption:EEmptyElementsOption)
+	Method ParseBracketExpressionList:TBracketExpressionListSyntaxData(emptyElementsOption:EEmptyElementsOption)
 		Local lbracket:TSyntaxToken = TryTakeToken(TTokenKind.LBracket)
 		If Not lbracket Then Return Null
 		
-		Local list:TExpressionListSyntax = ParseExpressionList(emptyElementsOption)
+		Local list:TExpressionListSyntaxData = ParseExpressionList(emptyElementsOption)
 		
 		Local rbracket:TSyntaxToken = TakeToken(TTokenKind.RBracket)
 		
-		Return New TBracketExpressionListSyntax(lbracket, list, rbracket)
+		Return TBracketExpressionListSyntaxData.Create(lbracket, list, rbracket)
 	End Method
 	
-	Method ParseExpressionList:TExpressionListSyntax(emptyElementsOption:EEmptyElementsOption) ' always succeeds
-		Local elements:TExpressionListElementSyntax[]
+	Method ParseExpressionList:TExpressionListSyntaxData(emptyElementsOption:EEmptyElementsOption) ' always succeeds
+		Local elements:TExpressionListElementSyntaxData[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
 				comma = TryTakeToken(TTokenKind.Comma)
 				If Not comma Then Exit
 			End If
-			Local expression:IExpressionSyntax = ParseExpression()
+			Local expression:IExpressionSyntaxData = ParseExpression()
 			If expression Then
 				If emptyElementsOption = EEmptyElementsOption.Require Then
 					ReportError "Expected ," ' TODO: skip tokens
@@ -2884,101 +2884,101 @@ Type TParser Implements IParser Final
 					ReportError "Expected expression"
 				End If
 			End If
-			elements :+ [New TExpressionListElementSyntax(comma, expression)]
+			elements :+ [TExpressionListElementSyntaxData.Create(comma, expression)]
 		Forever
-		Return New TExpressionListSyntax(elements)
+		Return TExpressionListSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseTypeParameterList:TTypeParameterListSyntax()
+	Method ParseTypeParameterList:TTypeParameterListSyntaxData()
 		Local lchevron:TSyntaxToken = TryTakeToken(TTokenKind.Lt)
 		If Not lchevron Then Return Null
 		
-		Local list:TTypeParameterDeclaratorListSyntax = ParseTypeParameterDeclaratorList()
+		Local list:TTypeParameterDeclaratorListSyntaxData = ParseTypeParameterDeclaratorList()
 		
 		Local rchevron:TSyntaxToken = TakeToken(TTokenKind.Gt)
 		
-		Return New TTypeParameterListSyntax(lchevron, list, rchevron)
+		Return TTypeParameterListSyntaxData.Create(lchevron, list, rchevron)
 	End Method
 	
-	Method ParseTypeArgumentList:TTypeArgumentListSyntax()
+	Method ParseTypeArgumentList:TTypeArgumentListSyntaxData()
 		Local lchevron:TSyntaxToken = TryTakeToken(TTokenKind.Lt)
 		If Not lchevron Then Return Null
 		
-		Local list:TTypeListSyntax = ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Allow, EArrayDimensionsOption.Disallow)
+		Local list:TTypeListSyntaxData = ParseTypeList(ETypeParseMode.Committal, EColonTypeMode.NoColon, ECallableTypeOption.Allow, EArrayDimensionsOption.Disallow)
 		
 		Local rchevron:TSyntaxToken = TakeToken(TTokenKind.Gt)
 		
-		Return New TTypeArgumentListSyntax(lchevron, list, rchevron)
+		Return TTypeArgumentListSyntaxData.Create(lchevron, list, rchevron)
 	End Method
 	
-	Method ParseTypeList:TTypeListSyntax(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' always succeeds
-		Local elements:TTypeListElementSyntax[]
+	Method ParseTypeList:TTypeListSyntaxData(typeParseMode:ETypeParseMode, colonTypeMode:EColonTypeMode, callableTypeOption:ECallableTypeOption, arrayDimensionsOption:EArrayDimensionsOption) ' always succeeds
+		Local elements:TTypeListElementSyntaxData[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
 				comma = TryTakeToken(TTokenKind.Comma) ' TODO: put comma on terminator stack?
 				If Not comma Then Exit
 			End If
-			Local type_:TTypeSyntax = ParseType(typeParseMode, colonTypeMode, callableTypeOption, arrayDimensionsOption)
+			Local type_:TTypeSyntaxData = ParseType(typeParseMode, colonTypeMode, callableTypeOption, arrayDimensionsOption)
 			If Not type_ Then
 				ReportError "Expected type"
 			End If
-			elements :+ [New TTypeListElementSyntax(comma, type_)]
+			elements :+ [TTypeListElementSyntaxData.Create(comma, type_)]
 		Forever
-		Return New TTypeListSyntax(elements)
+		Return TTypeListSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseQualifiedNameList:TQualifiedNameListSyntax() ' always succeeds
-		Local elements:TQualifiedNameListElementSyntax[]
+	Method ParseQualifiedNameList:TQualifiedNameListSyntaxData() ' always succeeds
+		Local elements:TQualifiedNameListElementSyntaxData[]
 		Repeat
 			Local comma:TSyntaxToken
 			If elements Then
 				comma = TryTakeToken(TTokenKind.Comma)
 				If Not comma Then Exit
 			End If
-			Local name:TQualifiedNameSyntax = ParseQualifiedName()
+			Local name:TQualifiedNameSyntaxData = ParseQualifiedName()
 			If Not name Then
 				ReportError "Expected identifier"
 			End If
-			elements :+ [New TQualifiedNameListElementSyntax(comma, name)]
+			elements :+ [TQualifiedNameListElementSyntaxData.Create(comma, name)]
 		Forever
-		Return New TQualifiedNameListSyntax(elements)
+		Return TQualifiedNameListSyntaxData.Create(elements)
 	End Method
 	
-	Method ParseMetaData:TMetaDataSyntax()
+	Method ParseMetaData:TMetaDataSyntaxData()
 		Local lbrace:TSyntaxToken = TryTakeToken(TTokenKind.LBrace)
 		If Not lbrace Then Return Null
 		
-		Local elements:TMetaDataElementSyntax[]
+		Local elements:TMetaDataElementSyntaxData[]
 		Repeat
-			Local key:TNameSyntax = ParseName()
+			Local key:TNameSyntaxData = ParseName()
 			If Not key Then Exit
 			Local eq:TSyntaxToken = TryTakeToken(TTokenKind.Eq)
-			Local value:IExpressionSyntax
+			Local value:IExpressionSyntaxData
 			If eq Then
 				value = ParseConstantExpression()
 				If Not value Then
 					ReportError "Expected constant value"
-					value = New TStringLiteralExpressionSyntax(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
+					value = TStringLiteralExpressionSyntaxData.Create(GenerateMissingToken(TTokenKind.StringLiteral, ""), Null)
 				End If
 			End If
-			elements :+ [New TMetaDataElementSyntax(key, eq, value)]
+			elements :+ [TMetaDataElementSyntaxData.Create(key, eq, value)]
 		Forever
 		
 		Local rbrace:TSyntaxToken = TakeToken(TTokenKind.RBrace)
 		
-		Return New TMetaDataSyntax(lbrace, elements, rbrace)
+		Return TMetaDataSyntaxData.Create(lbrace, elements, rbrace)
 	End Method
 	
-	Method ParseName:TNameSyntax()
+	Method ParseName:TNameSyntaxData()
 		Local identifier:TSyntaxToken = TryTakeToken(TTokenKind.Identifier)
 		If Not identifier Then Return Null
 		
-		Return New TNameSyntax(identifier)
+		Return TNameSyntaxData.Create(identifier)
 	End Method
 	
-	Method ParseQualifiedName:TQualifiedNameSyntax()
-		Local parts:TQualifiedNamePartSyntax[]
+	Method ParseQualifiedName:TQualifiedNameSyntaxData()
+		Local parts:TQualifiedNamePartSyntaxData[]
 		Repeat
 			Local dot:TSyntaxToken = TryTakeToken(TTokenKind.Dot)
 			If parts And Not dot Then Exit
@@ -2990,13 +2990,13 @@ Type TParser Implements IParser Final
 					ReportError "Expected identifier"
 				End If
 			End If
-			parts :+ [New TQualifiedNamePartSyntax(dot, identifier)]
+			parts :+ [TQualifiedNamePartSyntaxData.Create(dot, identifier)]
 		Forever
 		
-		Return New TQualifiedNameSyntax(parts)
+		Return TQualifiedNameSyntaxData.Create(parts)
 	End Method
 	
-	Method ParseOperator:TOperatorSyntax(tokenKinds:TTokenKind[]) ' backtracks
+	Method ParseOperator:TOperatorSyntaxData(tokenKinds:TTokenKind[]) ' backtracks
 		' backtracks only when more than one token kind is passed
 		Assert tokenKinds Else "Operator must consist of at least one token"
 		
@@ -3019,21 +3019,21 @@ Type TParser Implements IParser Final
 			End If
 		Next
 		
-		Return New TOperatorSyntax(tokens)
+		Return TOperatorSyntaxData.Create(tokens)
 	End Method
 	
-	Method ParseContextualKeyword:TContextualKeywordSyntax(canonicalValue:String)
+	Method ParseContextualKeyword:TContextualKeywordSyntaxData(canonicalValue:String)
 		' parses an identifier that has canonicalValue as its value (by case-insensitive comparison)
 		If currentToken.Kind() = TTokenKind.Identifier And currentToken.lexerToken.value.ToLower() = canonicalValue.ToLower() Then
 			Local identifier:TSyntaxToken = TakeToken(TTokenKind.Identifier)
-			Return New TContextualKeywordSyntax(canonicalValue, identifier)
+			Return TContextualKeywordSyntaxData.Create(canonicalValue, identifier)
 		Else
 			Return Null
 		End If
 	End Method
 	
-	Method ParseAssignment:TAssignmentSyntax(assignmentMode:EAssignmentMode)
-		Local op:TOperatorSyntax
+	Method ParseAssignment:TAssignmentSyntaxData(assignmentMode:EAssignmentMode)
+		Local op:TOperatorSyntaxData
 		Select assignmentMode
 			Case EAssignmentMode.Regular, EAssignmentMode.Constant
 				op = ParseOperator([TTokenKind.Eq])
@@ -3054,7 +3054,7 @@ Type TParser Implements IParser Final
 		End Select
 		If Not op Then Return Null
 		
-		Local expression:IExpressionSyntax
+		Local expression:IExpressionSyntaxData
 		If assignmentMode = EAssignmentMode.Constant Then
 			expression = ParseConstantExpression()
 			If Not expression Then
@@ -3069,38 +3069,38 @@ Type TParser Implements IParser Final
 			End If
 		End If
 		
-		Return New TAssignmentSyntax(op, expression)
+		Return TAssignmentSyntaxData.Create(op, expression)
 	End Method
 	
-	Method ParseExternSignatureAssignment:TExternSignatureAssignmentSyntax()
-		Local op:TOperatorSyntax = ParseOperator([TTokenKind.Eq])
+	Method ParseExternSignatureAssignment:TExternSignatureAssignmentSyntaxData()
+		Local op:TOperatorSyntaxData = ParseOperator([TTokenKind.Eq])
 		If Not op Then Return Null
 		
 		Local externSignature:TSyntaxToken = TakeToken(TTokenKind.StringLiteral)
 		
-		Return New TExternSignatureAssignmentSyntax(op, externSignature)
+		Return TExternSignatureAssignmentSyntaxData.Create(op, externSignature)
 	End Method
 	
-	Method ParseStatementSeparator:TStatementSeparatorSyntax() ' parses a logical newline (semicolon or non-escaped line break)
+	Method ParseStatementSeparator:TStatementSeparatorSyntaxData() ' parses a logical newline (semicolon or non-escaped line break)
 		Local token:TSyntaxToken = TryTakeToken(StatementSeparatorTokenKinds)
 		If Not token Then Return Null
 		
-		Return New TStatementSeparatorSyntax(token)
+		Return TStatementSeparatorSyntaxData.Create(token)
 	End Method
 	
-	Method ParseStatementSeparators:TStatementSeparatorSyntax[]()
-		Local separators:TStatementSeparatorSyntax[]
+	Method ParseStatementSeparators:TStatementSeparatorSyntaxData[]()
+		Local separators:TStatementSeparatorSyntaxData[]
 		Repeat
-			Local separator:TStatementSeparatorSyntax = ParseStatementSeparator()
+			Local separator:TStatementSeparatorSyntaxData = ParseStatementSeparator()
 			If separator Then separators :+ [separator] Else Exit
 		Forever
 		Return separators
 	End Method
 	
-	Function HasAnyArrayDimensions:Int(suffix:TTypeSuffixSyntax) ' returns True if there is at least one
-		Local arraySuffix:TArrayTypeSuffixSyntax = TArrayTypeSuffixSyntax(suffix)
+	Function HasAnyArrayDimensions:Int(suffix:TTypeSuffixSyntaxData) ' returns True if there is at least one
+		Local arraySuffix:TArrayTypeSuffixSyntaxData = TArrayTypeSuffixSyntaxData(suffix)
 		If arraySuffix Then
-			For Local element:TExpressionListElementSyntax = EachIn arraySuffix.dimensionsList.elements
+			For Local element:TExpressionListElementSyntaxData = EachIn arraySuffix.dimensionsList.elements
 				If element.expression Then Return True
 			Next
 		End If

@@ -1063,6 +1063,7 @@ nodetypes = {
 			}
 		}
 	},
+	----------------------------------------------------------------------------------------	
 	{
 		category = "Auxiliary Constructs",
 		{
@@ -1213,7 +1214,7 @@ nodetypes = {
 			kind = "Type",
 			fields = {
 				{ name = "dot", type = Token, nullable = true, minor = true },
-				{ name = "identifier", type = Token, nullable = true }
+				{ name = "identifier", type = Token, nullable = true } -- null for leading dot
 			}
 		},
 		{

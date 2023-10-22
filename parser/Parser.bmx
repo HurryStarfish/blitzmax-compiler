@@ -2979,16 +2979,26 @@ Type TParser Implements IParser Final
 	
 	Method ParseQualifiedName:TQualifiedNameSyntaxData()
 		Local parts:TQualifiedNamePartSyntaxData[]
-		Repeat
+		If True Then ' first part
 			Local dot:TSyntaxToken = TryTakeToken(TTokenKind.Dot)
-			If parts And Not dot Then Exit
+			If dot Then ' identifier with leading dot
+				parts = [TQualifiedNamePartSyntaxData.Create(dot, Null)]
+			Else
+				Local identifier:TSyntaxToken = TryTakeToken(TTokenKind.Identifier)
+				If identifier Then
+					parts = [TQualifiedNamePartSyntaxData.Create(Null, identifier)]
+				Else
+					Return Null
+				End If
+			End If
+		End If
+		Repeat ' other parts
+			Local dot:TSyntaxToken = TryTakeToken(TTokenKind.Dot)
+			If Not dot Then Exit
 			Local identifier:TSyntaxToken = TryTakeToken(TTokenKind.Identifier)
 			If Not identifier Then
-				If Not parts Then
-					Return Null
-				Else
-					ReportError "Expected identifier"
-				End If
+				ReportError "Expected identifier"
+				identifier = GenerateMissingIdentifier()
 			End If
 			parts :+ [TQualifiedNamePartSyntaxData.Create(dot, identifier)]
 		Forever

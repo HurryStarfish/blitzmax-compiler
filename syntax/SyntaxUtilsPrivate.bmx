@@ -1,10 +1,10 @@
 
+? Debug
 ' verify types
 Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
 Assert iSyntaxTypeId Else "ISyntax type not found"
 Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
 Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
-? Debug
 For Local t:TTypeId = EachIn TTypeId.EnumTypes()
 	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
 		' verify presence of ISyntaxOrSyntaxToken field
@@ -26,10 +26,8 @@ For Local t:TTypeId = EachIn TTypeId.EnumTypes()
 		Next
 	End If
 Next
-?
 
 Function Verify(syntaxData:ISyntaxData)
-	? Debug
 	Local t:TTypeId = TTypeId.ForObject(syntaxData)
 	For Local f:TField = EachIn GetAllFields(t)
 		Local fValue:Object = f.Get(syntaxData)
@@ -46,29 +44,17 @@ Function Verify(syntaxData:ISyntaxData)
 			Next
 		End If
 	Next
-	Local hasChildren:Int = False
-	For Local c:ISyntaxDataOrSyntaxToken = EachIn syntaxData.GetChildren()
-		hasChildren = True
-		Exit
-	Next
-	'If Not hasChildren Then RuntimeError t.Name() + " instance has no non-null children"
-	? Not Debug
-	RuntimeError "Don't call this in Release"
-	?
 End Function
+?
 
 ' this is very type-unsafe
 Function ChildrenToArray:Object[](c1:Object = Null, c2:Object = Null, c3:Object = Null, c4:Object = Null, c5:Object = Null, c6:Object = Null, c7:Object = Null, c8:Object = Null, c9:Object = Null, c10:Object = Null, c11:Object = Null, c12:Object = Null)
 	' filters out null objects and flattens arrays; returns array of the results
 	
-	Function GetCount:Int(c:Object)', weakRefObjects:Object[] Var)
+	Function GetCount:Int(c:Object)
 		? Debug
 		If TWeakReference(c) Then RuntimeError "Don't call this in types with weak refs"
 		?
-		'If TWeakReference(c) Then
-		'	c = TWeakReference(c).Get()
-		'	If c Then weakRefObjects :+ [c]
-		'End If
 		Local cAsArray:Object[] = Object[](c)
 		If cAsArray Then
 			Local nonNullElements:Int = 0
@@ -84,9 +70,6 @@ Function ChildrenToArray:Object[](c1:Object = Null, c2:Object = Null, c3:Object 
 	End Function
 	
 	Function AddToArray(a:Object[], currentIndex:Int Var, c:Object)
-		'If TWeakReference(c) Then
-		'	c = TWeakReference(c).Get()
-		'End If
 		Local cAsArray:Object[] = Object[](c)
 		If cAsArray Then
 			For Local i:Int = 0 Until cAsArray.length
@@ -106,23 +89,6 @@ Function ChildrenToArray:Object[](c1:Object = Null, c2:Object = Null, c3:Object 
 		End If
 	End Function
 	
-	'Local weakRefObjects:Object[] ' to prevent weak refs from disappearing between the counting and adding
-	
-	Rem
-	Local elementCount:Int = ..
-		GetCount(c1, weakRefObjects) + ..
-		GetCount(c2, weakRefObjects) + ..
-		GetCount(c3, weakRefObjects) + ..
-		GetCount(c4, weakRefObjects) + ..
-		GetCount(c5, weakRefObjects) + ..
-		GetCount(c6, weakRefObjects) + ..
-		GetCount(c7, weakRefObjects) + ..
-		GetCount(c8, weakRefObjects) + ..
-		GetCount(c9, weakRefObjects) + ..
-		GetCount(c10, weakRefObjects) + ..
-		GetCount(c11, weakRefObjects) + ..
-		GetCount(c12, weakRefObjects)
-	End Rem
 	Local elementCount:Int = ..
 		GetCount(c1) + ..
 		GetCount(c2) + ..

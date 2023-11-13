@@ -206,6 +206,8 @@ nodetypes = {
 				{ name = "initiatorKeyword", type = Token, minor = true },
 				{ name = "name", type = "TName" },
 				{ name = "typeParameters", type = "TTypeParameterList", nullable = true },
+				{ name = "implementsKeyword", type = Token, nullable = true, minor = true },
+				{ name = "superInterfaces", type = "TTypeList", nullable = true },
 				{ name = "modifiers", type = "TTypeModifier[]" },
 				{ name = "metaData", type = "TMetaData", nullable = true },
 				{ name = "body", type = "TCodeBlock" },
@@ -806,6 +808,7 @@ nodetypes = {
 			kind = "Interface"
 		},
 		{
+			-- not every type cast is parsed as this, some are parsed as calls instead
 			name = "TTypeCastExpression", extends = {"T"}, implements = {"IPrefixCompatibleExpression"},
 			kind = "Type",
 			fields = {
@@ -843,6 +846,7 @@ nodetypes = {
 			}
 		},
 		{
+			-- may also be a type cast that is syntactically indistinguishable from a call
 			name = "TCallExpression", extends = {"T"}, implements = {"IPostfixCompatibleExpression"},
 			kind = "Type",
 			fields = {
@@ -970,6 +974,7 @@ nodetypes = {
 	{
 		category = "Types",
 		{
+			-- TODO: restructure to allow member access after type argument list
 			name = "TType", extends = {"T"},
 			kind = "Type",
 			fields = {

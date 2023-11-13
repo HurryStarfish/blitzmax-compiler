@@ -3,6 +3,13 @@ Import "../lexer/CodeRange.bmx"
 
 
 
+' TODO:
+' - make compilation unit and include directive implement a special interface that provides a file name
+' - tokens will no longer store a code location
+' - nodes will store the sum of the lengths of the values of all the tokens under them, excluding
+'   those under the nodes that are the children of any node that implements the interface
+'   (so the content of include files is not counted towards the length of the including file)
+'   this will make nodes reusable after code changes
 Interface ISyntaxOrSyntaxTree End Interface
 
 

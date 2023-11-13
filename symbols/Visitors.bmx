@@ -2,9 +2,16 @@ SuperStrict
 Import "Scope.bmx"
 Import "../syntax/SyntaxVisitor.bmx"
 Import "../util/GraphUtils.bmx"
+Import "SymbolsImpl.bmx"
+Import "SemanticError.bmx"
+Import "../util/MessageUtils.bmx"
+Import "../util/Logging.bmx"
 Import BRL.LinkedList
 Import BRL.Map
 Import brl.standardio ' TODO: remove again
+
+
+' TODO: https://learn.microsoft.com/en-us/archive/blogs/ericlippert/how-do-we-ensure-that-method-type-inference-terminates
 
 
 Private
@@ -54,10 +61,6 @@ End Type
 
 Type TCollectTypeDeclarationSyntaxesVisitor Extends TSyntaxVisitor Final
 	' see CreateTypeDeclarations
-	' type declarations refer to each other; creating a declaration requires the declarations
-	' for all its super/base types to be created first
-	' these dependencies can span across compilation units, can span across scopes even within the same
-	' compilation unit (regardless of nesting structure), and are independent of code order
 	' restriction: imports can not have cycles, which means two types from different compilation units
 	'              cannot both depend on a type from the other compilation unit
 	' restriction: type dependencies can not have cycles, so two types cannot both depend on each other
@@ -82,9 +85,9 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 	
 	Method VisitTopDown(syntax:TVariableDeclarationSyntax)
 		' all declarations that aren't direct children of a code block
-		' (callable parameters, For loop counters, Catch exception variables) should
-		' be handled by their parent statements (see other visit methods below); since
-		' these are top-down visits, that means they have already been handled when we get here
+		' (e.g. callable parameters, For loop counters, Catch exception variables) should be
+		' handled by their respective parent statements (see visit methods below); since these
+		' are top-down visits, such declarations have already been handled when see them here
 		If Not TCodeBlockSyntax(syntax.Parent()) Then Return
 		
 		Local scope:TScope = GetParentCodeBlockScope(syntax)
@@ -97,10 +100,12 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		Assert e Else "Parent of enum member is not an enum declaration"
 		Local nameStr:String = syntax.Name().Identifier().lexerToken.value
 		Local scope:TScope = TScope(scopes[e])
-		scope.AddDeclaration New TConstDeclaration(nameStr)
+		RuntimeError "TODO"'scope.AddDeclaration New TConstDeclarationSymbol(nameStr)
 	End Method
 	
 	Method VisitTopDown(syntax:TCallableDeclarationSyntax)
+		RuntimeError "TODO"
+		Rem
 		Local scope:TScope = GetParentCodeBlockScope(syntax)
 		Local nameStr:String
 		If syntax.Name().IdentifierName() Then
@@ -141,6 +146,7 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		End If
 		
 		' TODO: handle type parameters
+		End Rem
 	End Method
 	
 	Method VisitTopDown(syntax:TForStatementSyntax)
@@ -213,266 +219,651 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		End Select
 		
 		Function ProcessDeclarator(syntax:TVariableDeclaratorListElementSyntax, scope:TScope, declarationKeyword:TSyntaxToken, shouldHaveDeclarationKeyword:Int)
+			RuntimeError "TODO"
+			Rem
 			Local nameStr:String = syntax.Declarator().Name().Identifier().lexerToken.value
 			
-			Local symbol:TVariableDeclaration
+			Local symbol:IVariableDeclarationSymbol
 			If (Not declarationKeyword) Or (Not shouldHaveDeclarationKeyword) Then
 				'                                   ^ ignore keyword if unexpected
 				symbol = New TLocalDeclaration(nameStr)
 			Else
 				Select declarationKeyword.Kind()
-					Case TTokenKind.Const_  symbol = New TConstDeclaration(nameStr)
-					Case TTokenKind.Global_ symbol = New TGlobalDeclaration(nameStr)
-					Case TTokenKind.Local_  symbol = New TLocalDeclaration(nameStr)
-					Case TTokenKind.Field_  symbol = New TFieldDeclaration(nameStr)
+					Case TTokenKind.Const_  symbol = New TConstDeclarationSymbol(nameStr)
+					Case TTokenKind.Global_ symbol = New TGlobalDeclarationSymbol(nameStr)
+					Case TTokenKind.Local_  symbol = New TLocalDeclarationSymbol(nameStr)
+					Case TTokenKind.Field_  symbol = New TFieldDeclarationSymbol(nameStr)
 					Default RuntimeError "Missing case"
 				End Select
 			End If
 			'If scope.GetSymbolForName(nameStr) Then Throw "TODO" ' TODO: handle duplicate declarations
 			scope.AddDeclaration symbol
+			End Rem
 		End Function
 	End Function
 End Type
 
 
 
-Function CreateTypeDeclarations(typeDeclarationSyntaxes:TList, scopes:TMap)'<TTypeDeclarationSyntax>'<ISyntax, TScope>
-	' creates declarations for all given syntax nodes and inserts them into scopes
-	' since these declarations have references to all other declarations they have dependencies on,
-	' this requires the would-be declarations to be topologically sorted before they can be created
+Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[], scopeTree:TScopeTree)'<ISyntax, TScope>
+	' creates type declarations for all given syntax nodes and inserts them into scopes
+	' this function should only be called once be compilation unit, with all of the unit's
+	' type declaration syntaxes
+	' precondition: scopes have already been attached to the type body syntaxes
 	
-	' such dependencies are:
+	' these dependencies can span across compilation units, can span across scopes even within the same
+	' compilation unit (regardless of nesting structure), and are independent of code order
+	' type declarations can have various kinds of relationships with each other
+	' these include:
 	' - super types
 	' - enum base types
-	' - outer types (of types declared either directly inside other types, or locally inside callables)
-	' - NOT type arguments of super/base types (because relationships such as such as
-	'  "Type A Extends B<A>" must be allowed)
-	' - NOT types referenced in generic constraints (because in that case, the dependency is that of
-	'   the type parameter, not of the type having the type parameter)
+	' - outer types
+	' - type arguments of super/base types
+	' - types referenced in generic constraints
+	' some of these relationships are allowed to form cycles while others do not
+	' the following restrictions apply:
+	' - a type may not inherit itself or a subtype of itself (no inheritance cycles)
+	' - a type may not inherit one of its type parameters
+	' however:
+	' - a type may inherit one of its outer or inner types
+	' - a type may use itself as a type argument of one of its super types (e.g. "Type A Extends B<A>" is allowed)
+	' - a type may use itself as a constraint (or type argument thereof) for one of its type parameters (e.g. "Type A<T> Where T Extends A<T>")
+	
+	' since imports cannot form cycles, inheritance cycles can only occur between types in the same
+	' compilation unit; types in imported compilation units must already be resolved
+	' within a compilation unit however, types can depend on each other regardless of code
+	' order and nesting
+	
+	' type declarations are created and initialized using the following algorithm:
+	' - create unfinished type declarations for all types in the compilation unit and insert them
+	'   into the correct scopes
+	' - for each declaration, create a node for a directed graph
+	' - repeat for all unfinished types in the order of the corresponding nodes:
+	'   - if type has no super types that might be from the same compilation unit, mark as finished
+	'   - otherwise, try to look up super type declarations
+	'     - if lookup involves looking into the body scope of a type that is unfinished
+	'       or has any super types that are themselves unfinished*, cancel the lookup
+	'       (because otherwise the result of the lookup might be incomplete) and record an edge
+	'       towards said type whose scope caused the lookup to be cancelled
+	'       * ignore any super type that is the type currently being processed
+	'     - otherwise, if all lookups complete without being cancelled, mark the type as finished,
+	'       discard previous edges from this type and record edges towards all immediate super types
+	'   - topologically sort the nodes for the next iteration of the loop
+	'       if all types are finished OR no progress has been made in the latest iteration,
+	'       calculate strongly connected components to find cycles and report errors for them;
+	'       also report errors for super types that were not looked up successfully
+	
 	
 	' TODO: add type parameters as their own declarations
-	' - the generic type depends on its type parameters, so that the parameter declarations can be
-	'   referenced by the generic declaration
+	'       (a generic type must allow its type parameter declarations to be referenced inside
+	'       the rest of its signature; this means they must be in scope there)
 	' TODO: add dependencies for generic super/base types (the dependency is on the type created by
 	' applying the type arguments; this type will in turn have dependencies on the generic type it
 	' was created from, as well as on all the type argument types - how to handle cycles there?)
-	
 	' e.g.: Type A Extends B<X>;   Type B<T> Where T : C
 	'           - A depends on B<X>
 	'           - B<X> depends on B<T> and on X
 	'           - B<T> depends on T
 	'           - T depends on C
-	'           => creation order: C, T, B<T>, X, B<X>, A
+	'           => resolution order: C, T, B<T>, X, B<X>, A?
 	' e.g.: Type A Extends B<A>;   Type B<T>
 	'           - A depends on B<A>
 	'           - B<A> depends on B<T> and on A
 	'           - B<T> depends on T
-	'           => creation order: C, T, B<T>, X, B<X>, A
+	'           => resolution order: C, T, B<T>, X, B<X>, A?
 	
-	' imports cannot have cycles, so types in imported compilation units must already have been resolved
-	' but within the same unit, types can depend on each other regardless of scope nesting and code order
-	' hence, this function should only be called once per compilation unit and given all type declaration
-	' syntax links in the unit
-		
-	'Local resolutionQueue:TList = New TList'<TSyntaxLink<TTypeDeclarationSyntax>>
+	' TODO: should a type be allowed to derive from a type less visible than it?
+	'       if so, the derived type should probably not be allowed to have any callable member that
+	'       (1) has its super type (this type) mentioned as or in one of its parameter types and
+	'       (2) can still be overridden (i.e. the derived type and callable are both non-final and the
+	'       callable is not already overridden by another one that does not match conditions (1) and (2))
+	'       otherwise, when deriving from the derived type in a place where the base type is not visible,
+	'       it would be impossible to override such callables because for that, the parameter types must
+	'       match exactly (otherwise it's an overload) and the base type is not visible so they can't
 	
-	' create list of unresolved placeholder declarations and insert into scopes if possible
-	' these will be used for the dependency graph
-	Local typeDeclarations:TList = New TList'<TTypeDeclaration>
-	For Local syntax:TTypeDeclarationSyntax = EachIn typeDeclarationSyntaxes
-		Local unresolvedDeclaration:TUnresolvedTypeDeclaration = New TUnresolvedTypeDeclaration(GetName(syntax), syntax)
-		typeDeclarations.AddLast unresolvedDeclaration
-		GetParentCodeBlockScope(syntax, scopes).AddDeclaration unresolvedDeclaration
-		' TODO: handle failure to add (duplicate declaration)
-	Next
-	
-	' create dependency graph
-	Local graphNodes:TList = New TList'<TGraphNode>
-	Local graphNodeMap:TMap = New TMap'<TTypeDeclarationSyntax, TGraphNode>
-	Local typeDeclarationListLink:TLink = typeDeclarations.FirstLink()
-	For Local syntax:ISyntax = EachIn typeDeclarationSyntaxes
-		Local node:TGraphNode = New TGraphNode(typeDeclarationListLink.Value())
-		graphNodes.AddLast node
-		graphNodeMap[syntax] = node
-		typeDeclarationListLink = typeDeclarationListLink.NextLink()
-	Next
-	For Local syntax:TTypeDeclarationSyntax = EachIn typeDeclarationSyntaxes
-		Local explicitDependencySyntaxes:ISyntax[] = GetExplicitDependencies(syntax) '<TTypeSyntax | TTypeDeclarationSyntax>[]
-		Local edges:TGraphNode[explicitDependencySyntaxes.length]
-		For Local d:Int = 0 Until explicitDependencySyntaxes.length
-			Local dependencySyntax:ISyntax = explicitDependencySyntaxes[d]
-			If TTypeDeclarationSyntax(dependencySyntax) Then
-				' create edge syntax->dependencySyntax
-				edges[d] = TGraphNode(graphNodeMap[dependencySyntax])
-			Else If TTypeSyntax(dependencySyntax) Then
-				' TODO: check before doing these casts:
-				Local dependencyNamePartSyntaxes:TQualifiedNamePartSyntax[] = TQualifiedNameTypeBaseSyntax(TTypeSyntax(dependencySyntax).Base()).Name().Parts()
-				Function PartStr:String(s:TQualifiedNamePartSyntax) Return s.Identifier().lexerToken.value End Function
-				Local dependencyDeclarations:IDeclaration[] = GetParentCodeBlockScope(syntax, scopes).LookUpDeclarationWIP(PartStr(dependencyNamePartSyntaxes[0]).ToLower(), False)
-				If dependencyNamePartSyntaxes.length > 1 Then
-					RuntimeError "TODO: lookup in more deeply nested scopes"
-				End If
-				Assert dependencyDeclarations.length = 1 Else "TODO: error handling for missing dependency"
-				' TODO: handle length = 0 (dependency doesnt exist (declaration wasnt found))
-				' look up placeholder declaration and then create edge
-				edges[d] = TGraphNode(graphNodeMap[TUnresolvedTypeDeclaration(dependencyDeclarations[0]).syntax])
-			Else
-				RuntimeError "Missing case"
-			End If
-		Next
-		TGraphNode(graphNodeMap[syntax]).edges = edges
-	Next
-	
-	' create ordered list of strongly connected components from the dependency graph
-	' if any component contains more than one node, it represents a dependency cycle
-	' the list is ordered so that no node has a dependency on a node in a later component, which means
-	' that (if there are no cycles) it describes a valid order to create the actual type declarations in
-	Local stronglyConnectedComponents:TList = TopologicalSort(graphNodes) '<TList<TGraphNode>>
-	
-	DebugOutput stronglyConnectedComponents ' TODO: remove debug output (and standarddio import)
-	Function DebugOutput(sccs:TList)
-		Print "sccs:"
-		For Local scc:TList = EachIn sccs
-			Local str:String
-			For Local n:TGraphNode = EachIn scc
-				If str Then str :+ " <-> "
-				str :+ TUnresolvedTypeDeclaration(n.obj).GetName()
+	Type TBuilderData Final
+		Field ReadOnly builder:TTypeDeclarationSymbolBuilder
+		Field ReadOnly graphNode:TGraphNode
+		Field ReadOnly superTypeDatas:TSuperTypeData[]
+		Field finished:Int = False
+		Field allSuperTypesFinished:Int = False
+		Method New(builder:TTypeDeclarationSymbolBuilder, graphNode:TGraphNode, superTypeDatas:TSuperTypeData[])
+			Self.builder = builder
+			Self.graphNode = graphNode
+			Self.superTypeDatas = superTypeDatas
+		End Method
+		Method SuperTypesFinished:Int(except:TBuilderData, builderDatas:TBuilderData[])
+			' this does not need to be recursive, since name lookups will visit super types anyway
+			If allSuperTypesFinished Then Return True
+			Local skippedExcept:Int = False
+			For Local superType:ITypeSymbol = EachIn Self.builder.Declaration().SuperTypes()
+				Local superData:TBuilderData = TBuilderData.Find(superType.Declaration(), builderDatas)
+				If Not superData Then Continue
+				If except And except.builder = superData.builder Then skippedExcept = True; Continue
+				If Not (superData.finished) Then Return False
 			Next
-			Print str
-		Next
-	End Function
+			If Not except Or (skippedExcept And except.finished) Then allSuperTypesFinished = True
+			Return True
+		End Method
+		Function Find:TBuilderData(declaration:ITypeDeclarationSymbol, builderDatas:TBuilderData[])
+			For Local d:Int = 0 Until builderDatas.length
+				If builderDatas[d].builder.Declaration() = declaration Then Return builderDatas[d]
+			Next
+			If Not IErrorTypeDeclarationSymbol(declaration) Then RuntimeError "TODO: Data not found (imported?)"
+		End Function
+	End Type
 	
-	' TODO: create the actual declarations and replace the placeholders
-	
-	Function GetExplicitDependencies:ISyntax[](syntax:TTypeDeclarationSyntax)'<TTypeSyntax | TTypeDeclarationSyntax>[]
-		' does not include Object as an implicit super type or implicit base types of enums
-		' those are declared in BRL.Blitz and guaranteed to already be available
-		Local dependencies:ISyntax[]'<TTypeSyntax | TTypeDeclarationSyntax>[]
-		
-		' outer type
-		If TTypeDeclarationSyntax(syntax.Parent()) Then
-			dependencies :+ [syntax.Parent()]
-		Else If TCodeBlockSyntax(syntax.Parent()) Then
-			Local parentSyntax:ISyntax = syntax.Parent()
-			While TCodeBlockSyntax(parentSyntax)
-				If TTypeDeclarationSyntax(parentSyntax.Parent()) Then
-					dependencies :+ [parentSyntax.Parent()]
-					Exit
-				End If
-				parentSyntax = parentSyntax.Parent()
-			Wend
-		End If
-		
-		' TODO: error on direct self-reference (such as "T Extends T"),
-		'       since this is not caught by the cycle detection
-
-		' super/base types
+	Type TSuperTypeData Final
+		Field typeAssigned:Int = False
+		Field ReadOnly typeSyntax:TTypeSyntax ' for the type symbol
+		Field ReadOnly typeNameSyntax:TQualifiedNameSyntax'nullable (null if different type base) ' for the lookup
+		Field ReadOnly isSuperClass:Int
+		Field ReadOnly isSuperInterface:Int
+		Field ReadOnly superInterfaceIndex:Int
+		Method New(typeSyntax:TTypeSyntax, isSuperClass:Int, isSuperInterface:Int, superInterfaceIndex:Int = -1)
+			Assert isSuperClass Or isSuperInterface Else "Unspecified kind of super type"
+			Assert (isSuperInterface And superInterfaceIndex <> -1) Or (Not isSuperInterface And superInterfaceIndex = -1) Else "Super interface flag does not match index"
+			Self.typeSyntax = typeSyntax
+			If typeSyntax And TQualifiedNameTypeBaseSyntax(typeSyntax.Base()) Then
+				Self.typeNameSyntax = TQualifiedNameTypeBaseSyntax(typeSyntax.Base()).Name()
+			End If
+			Self.typeNameSyntax = typeNameSyntax
+			Self.isSuperClass = isSuperClass
+			Self.isSuperInterface = isSuperInterface
+			Self.superInterfaceIndex = superInterfaceIndex
+		End Method
+	End Type
+	Function CreateBuilder:TTypeDeclarationSymbolBuilder(syntax:TTypeDeclarationSyntax)
 		If TClassDeclarationSyntax(syntax) Then
 			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(syntax)
-			If syntax.TypeParameters() Then
-				RuntimeError "TODO"
-			End If
-			If syntax.SuperClass() Then
-				Local superClassSyntax:ISyntax = syntax.SuperClass()
-				dependencies :+ [superClassSyntax]
-				' TODO: handle generic super class
-			End If
+			Local builder:TClassDeclarationSymbolBuilder = New TClassDeclarationSymbolBuilder(syntax)
 			If syntax.SuperInterfaces() Then
-				For Local e:TTypeListElementSyntax = EachIn syntax.SuperInterfaces().Elements()
-					If e.Type_() Then
-						Local superInterfaceSyntax:TTypeSyntax = e.Type_()
-						dependencies :+ [superInterfaceSyntax]
-						' TODO: handle generic super interfaces
-					End If
-				Next
+				Local nulls:TInterfaceSymbol[syntax.SuperInterfaces().Elements().length]
+				builder.SetSuperInterfaces(nulls)
 			End If
+			If syntax.TypeParameters() Then RuntimeError "TODO"
+			Return builder
 		Else If TStructDeclarationSyntax(syntax) Then
 			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(syntax)
-			If syntax.TypeParameters() Then
-				RuntimeError "TODO"
+			Local builder:TStructDeclarationSymbolBuilder = New TStructDeclarationSymbolBuilder(syntax)
+			If syntax.SuperInterfaces() Then
+				Local nulls:TInterfaceSymbol[syntax.SuperInterfaces().Elements().length]
+				builder.SetSuperInterfaces(nulls)
 			End If
-			' TODO: handle generic super interfaces
+			If syntax.TypeParameters() Then RuntimeError "TODO"
+			Return builder
 		Else If TInterfaceDeclarationSyntax(syntax) Then
 			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(syntax)
-			If syntax.TypeParameters() Then
-				RuntimeError "TODO"
-			End If
+			Local builder:TInterfaceDeclarationSymbolBuilder = New TInterfaceDeclarationSymbolBuilder(syntax)
 			If syntax.SuperInterfaces() Then
-				For Local e:TTypeListElementSyntax = EachIn syntax.SuperInterfaces().elements
-					If e.Type_() Then
-						Local superInterfaceSyntax:TTypeSyntax = e.Type_()
-						dependencies :+ [superInterfaceSyntax]
-						' TODO: handle generic super interfaces
-					End If
-				Next
+				Local nulls:TInterfaceSymbol[syntax.SuperInterfaces().Elements().length]
+				builder.SetSuperInterfaces(nulls)
 			End If
+			If syntax.TypeParameters() Then RuntimeError "TODO"
+			Return builder
 		Else If TEnumDeclarationSyntax(syntax) Then
 			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(syntax)
-			If syntax.BaseType() Then dependencies :+ [Syntax.BaseType()]
-			' TODO: handle generic base type
+			Local builder:TEnumDeclarationSymbolBuilder = New TEnumDeclarationSymbolBuilder(syntax)
+			Return builder
 		Else
 			RuntimeError "Missing case"
 		End If
-		
-		Return dependencies
-		
-		Function GetTypeArgumentDependencies:TTypeSyntax[](typeArgumentListSyntax:TTypeArgumentListSyntax)
-			Local typeListSyntax:TTypeListSyntax = typeArgumentListSyntax.TypeList()
-			Local dependencies:TTypeSyntax[]
-			For Local e:TTypeListElementSyntax = EachIn typeListSyntax.Elements()
-				Local typeArgumentSyntax:TTypeSyntax = e.Type_()
-				
-				' TODO: the type argument can itself have type arguments
-				'       but in that case, the actual dependency is not on the type belonging to the
-				'       type argument's declaration, but on the type produced by applying its
-				'       type arguments to it
-				'       e.g.: Type A Extends B<C>; Type B<T>
-				'                - A depends on B<C>
-				'                - B<C> depends on B<T> and on C
-				'                - B does not depend on A or C
-				If typeArgumentSyntax.TypeArguments() Then
-					RuntimeError "TODO"
-					'Local typeArgumentTypeArgumentListSyntax:ISyntax = typeArgumentSyntax.TypeArguments()
-					'dependencies :+ GetTypeArgumentDependencies(typeArgumentTypeArgumentListSyntax)
-				End If
-
-				dependencies :+ [typeArgumentSyntax]
-			Next
-			Return dependencies
-		End Function
+	End Function
+	Function CreateSuperTypeDatas:TSuperTypeData[](typeDeclarationSyntax:ISyntax)
+		Local superTypeDatas:TSuperTypeData[]
+		If TClassDeclarationSyntax(typeDeclarationSyntax) Then
+			Local syntax:TClassDeclarationSyntax = TClassDeclarationSyntax(typeDeclarationSyntax)
+			If syntax.SuperClass() Then
+				superTypeDatas = [New TSuperTypeData(syntax.SuperClass(), True, False)]
+			End If
+			If syntax.SuperInterfaces() Then
+				Local datas:TSuperTypeData[syntax.SuperInterfaces().Elements().length]
+					For Local d:Int = 0 Until datas.length
+					datas[d] = New TSuperTypeData(syntax.SuperInterfaces().Elements()[d].Type_(), False, True, d)
+				Next
+				superTypeDatas :+ datas
+			End If
+		Else If TStructDeclarationSyntax(typeDeclarationSyntax) Then
+			Local syntax:TStructDeclarationSyntax = TStructDeclarationSyntax(typeDeclarationSyntax)
+			If syntax.SuperInterfaces() Then
+				Local datas:TSuperTypeData[syntax.SuperInterfaces().Elements().length]
+					For Local d:Int = 0 Until datas.length
+					datas[d] = New TSuperTypeData(syntax.SuperInterfaces().Elements()[d].Type_(), False, True, d)
+				Next
+				superTypeDatas :+ datas
+			End If
+		Else If TInterfaceDeclarationSyntax(typeDeclarationSyntax) Then
+			Local syntax:TInterfaceDeclarationSyntax = TInterfaceDeclarationSyntax(typeDeclarationSyntax)
+			If syntax.SuperInterfaces() Then
+				Local datas:TSuperTypeData[syntax.SuperInterfaces().Elements().length]
+					For Local d:Int = 0 Until datas.length
+					datas[d] = New TSuperTypeData(syntax.SuperInterfaces().Elements()[d].Type_(), False, True, d)
+				Next
+				superTypeDatas :+ datas
+			End If
+		Else If TEnumDeclarationSyntax(typeDeclarationSyntax) Then
+			Local syntax:TEnumDeclarationSyntax = TEnumDeclarationSyntax(typeDeclarationSyntax)
+			Return []
+		Else If TTypeParameterDeclaratorSyntax(typeDeclarationSyntax) Then
+			RuntimeError "TODO"
+		Else
+			RuntimeError "Missing case"
+		End If
+		Return superTypeDatas
 	End Function
 	
-	Function GetParentCodeBlockScope:TScope(syntax:ISyntax, scopes:TMap)
+	
+	' create unfinished declarations and insert into scopes if possible
+	If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, "creating type declarations"	
+	Local builderDatas:TBuilderData[typeDeclarationSyntaxes.length]
+	Local graphNodes:TGraphNode[typeDeclarationSyntaxes.length]
+	Local unfinishedTypeCount:Int = builderDatas.length
+	Local unfinishedSuperCount:Int
+	For Local s:Int = 0 Until builderDatas.length
+		Local graphNode:TGraphNode = New TGraphNode(Null, [])
+		Local syntax:TTypeDeclarationSyntax = typeDeclarationSyntaxes[s]
+		Local builder:TTypeDeclarationSymbolBuilder = CreateBuilder(syntax) ' TODO: move to the visitor that collects the syntaxes?
+		GetParentCodeBlockScope(syntax, scopeTree).AddDeclaration builder.Declaration()
+		' TODO: handle failure to add (duplicate declaration)
+		builderDatas[s] = New TBuilderData(builder, graphNode, CreateSuperTypeDatas(syntax))
+		graphNode.obj = builderDatas[s]
+		graphNodes[s] = graphNode
+		unfinishedSuperCount :+ builderDatas[s].superTypeDatas.length
+	Next
+	
+	Local unfinishedGraphNodes:TGraphNode[] = graphNodes
+	Repeat
+		Local unfinishedSuperCountAtStartOfPass:Int = unfinishedSuperCount
+		' iterate over nodes for unfinished type declarations
+		#GraphNodeLoop
+		For Local graphNode:TGraphNode = EachIn unfinishedGraphNodes
+			Local data:TBuilderData = TBuilderData(graphNode.obj)
+			
+			If Not data.superTypeDatas Then ' TODO: or if they are imported types
+				' no explicit super types
+				If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, data.builder.Declaration().Name() + ": finished because no supers"
+				' TODO: set to Object
+				data.finished = True
+				data.allSuperTypesFinished = True
+				unfinishedTypeCount :- 1
+			Else
+				Local anySuperTypesMissing:Int = False
+				' iterate over super type datas for the type
+				#SuperTypeDataLoop
+				For Local superTypeData:TSuperTypeData = EachIn data.superTypeDatas
+					If superTypeData.typeAssigned Then Continue
+					
+					If Not superTypeData.typeNameSyntax Then
+						RuntimeError "TODO: keyword/sigil types, or missing type due to syntax error"
+					Else If superTypeData.typeSyntax.Suffixes() Then
+						RuntimeError "TODO: array types etc"
+					End If
+					
+					' start lookups in the scope the declaration is in
+					Local lookupStartingScope:TScope = GetParentCodeBlockScope(data.builder.Declaration().Syntax(), scopeTree)
+					' iterate over parts of the super type name
+					Local nameSyntax:TQualifiedNameSyntax = superTypeData.typeNameSyntax
+					Local parts:TQualifiedNamePartSyntax[] = nameSyntax.Parts()
+					If Not parts[0].Identifier() Then RuntimeError "TODO: global scope lookup"
+					For Local p:Int = 0 Until parts.length
+						Local part:TQualifiedNamePartSyntax = parts[p]
+						Local isFirstPart:Int = p = 0
+						Local isLastPart:Int = p = parts.length - 1
+						
+						' look up declaration(s) for the current name part
+						' cancel the lookup if the scope corresponds to the body of a type that is
+						' unfinished  (with the exception of the type currently being processed)
+						' or has any unfinished super types; otherwise, the result would be incomplete
+						Type LookupCancelCondition Implements ILookupCancelCondition Final
+							Field ReadOnly data:TBuilderData
+							Field ReadOnly scopeTree:TScopeTree
+							Field ReadOnly builderDatas:TBuilderData[]
+							
+							Field cancelledAtScope:TScope = Null
+							
+							Method New(data:TBuilderData, scopeTree:TScopeTree, builderDatas:TBuilderData[])
+								Self.data = data
+								Self.scopeTree = scopeTree
+								Self.builderDatas = builderDatas
+							End Method
+							
+							Method LookupCancelCondition:Int(scope:TScope) Override
+								For Local d:TBuilderData = EachIn builderDatas
+									' find the type/data that corresponds to the scope being looked in
+									If d = data Then Continue ' always allow self-lookup (e.g. "T Extends T.U")
+									If Not (d.finished And d.SuperTypesFinished(data, builderDatas)) Then
+										Local s:TScope = TScope(scopeTree.scopes[d.builder.Declaration().BodySyntax()])
+										Assert s Else "Missing scope"
+										If s = scope Then cancelledAtScope = scope; Return True
+									End If
+								Next
+							End Method
+						End Type
+						Local cancelCondition:LookupCancelCondition = New LookupCancelCondition(data, scopeTree, builderDatas)
+						
+						If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, data.builder.Declaration().Name() + ": looking up " + part.Identifier().lexerToken.value
+						Local foundDeclarations:IDeclarationSymbol[] = scopeTree.LookUpTypeDeclaration(lookupStartingScope, part.Identifier().lexerToken.value, isFirstPart, cancelCondition)
+						
+						If cancelCondition.cancelledAtScope Then
+							' record edge to the unfinished type that caused the lookup to cancel
+							For Local c:Int = 0 Until builderDatas.length
+								If scopeTree.scopes[builderDatas[c].builder.Declaration().BodySyntax()] = cancelCondition.cancelledAtScope Then
+									Local cancelledAtData:TBuilderData = builderDatas[c]
+									Local alreadyHasThisEdge:Int = False
+									For Local edge:TGraphNode = EachIn data.graphNode.edges
+										If edge = cancelledAtData.graphNode Then alreadyHasThisEdge = True; Exit
+									Next
+									If Not alreadyHasThisEdge Then data.graphNode.edges :+ [cancelledAtData.graphNode]
+									If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, data.builder.Declaration().Name() + ": skipped because of attempted lookup in " + cancelledAtData.builder.Declaration().Name()
+									Exit
+								End If
+								Assert data.builder <> builderDatas[builderDatas.length - 1].builder Else "TODO: Unable to create edge; finished or imported type?"
+							Next
+							anySuperTypesMissing = True
+							Continue SuperTypeDataLoop
+						End If
+						
+						' lookup completed;
+						' select best match for this name part from the found declarations
+						' if the name part is not the last part, a nullary result is expected;
+						' otherwise the expected arity depends on the supplied type argument list, if any
+						' if multiple matches were found, then an ambiguity error is reported
+						' unless a single best match can be determined
+						' e.g.: if looking up part B in A.B.C finds a "Type B" and "Interface B<T>",
+						' then the former is the best match, but if it finds a "Type B" and "Interface B",
+						' then there is ambiguity
+						' TODO: how to handle ambiguity involving type parameter default types,
+						' e.g. "Type B" and "Interface B<T = Int>"?
+						Local foundTypeDeclarations:ITypeDeclarationSymbol[foundDeclarations.length]
+						For Local d:Int = 0 Until foundTypeDeclarations.length
+							If ITypeDeclarationSymbol(foundDeclarations[d]) Then
+								foundTypeDeclarations[d] = ITypeDeclarationSymbol(foundDeclarations[d])
+							Else
+								RuntimeError "TODO: found something that is not a type"
+							End If
+						Next
+						If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, data.builder.Declaration().Name() + ": found " + foundTypeDeclarations.length + " declarations for " + part.Identifier().lexerToken.value
+						If Not foundTypeDeclarations Then
+							' found no declarations
+							If isLastPart Then
+								ReportError "Cannot find type " + part.Identifier().lexerToken.value, part
+							Else
+								ReportError "Cannot find type or module " + part.Identifier().lexerToken.value, part
+							End If
+							SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+							superTypeData.typeAssigned = True
+							unfinishedSuperCount :- 1
+						Else
+							Local desiredArity:Int
+							If isLastPart And superTypeData.typeSyntax.TypeArguments() Then
+								desiredArity = superTypeData.typeSyntax.TypeArguments().TypeList().Elements().length
+							Else
+								desiredArity = 0
+							End If
+							Local bestMatches:ITypeDeclarationSymbol[]
+							For Local declaration:ITypeDeclarationSymbol = EachIn foundTypeDeclarations
+								If declaration.Arity() = desiredArity Then bestMatches :+ [declaration]
+							Next
+							
+							If bestMatches.length = 1 Then
+								' found exactly one declaration that matches
+								' TODO: find modules too (for non-last parts), not just types
+								Local bestMatch:ITypeDeclarationSymbol = bestMatches[0]
+								If isLastPart Then
+									If bestMatch = data.builder.Declaration() Then ' direct self-inheritance
+										ReportError "Self-inheritance of " + data.builder.Declaration().NameWithTypeParameters(), superTypeData.typeSyntax
+										SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+									Else
+										SetSuperType data.builder, superTypeData, bestMatch
+									End If
+									superTypeData.typeAssigned = True
+									unfinishedSuperCount :- 1
+								Else
+									Assert TScope(scopeTree.scopes[bestMatch.BodySyntax()]) Else "Missing scope"
+									lookupStartingScope = TScope(scopeTree.scopes[bestMatch.BodySyntax()])
+								End If
+							Else If bestMatches.length = 0 And foundTypeDeclarations.length = 1 Then
+								' found exactly one declaration, but it does not match
+								ReportError foundTypeDeclarations[0].NameWithTypeParameters() + " requires " + foundTypeDeclarations[0].Arity() + Pluralize(" type argument", foundTypeDeclarations[0].Arity() <> 1) + ", not " + desiredArity, part
+								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+								superTypeData.typeAssigned = True
+								unfinishedSuperCount :- 1
+							Else If bestMatches.length > 1 Then
+								' found multiple declarations that match
+								Local bestMatchNamesStr:String = ""
+								For Local m:Int = 0 Until bestMatches.length
+									If bestMatchNamesStr Then bestMatchNamesStr :+ [", ", " and "][m = bestMatches.length - 1]
+									' TODO: report fully qualified names (or at least relative to the current location) here
+									bestMatchNamesStr :+ bestMatches[m].NameWithTypeParameters()
+								Next
+								ReportError "~q" + part.Identifier().lexerToken.value + "~q is ambiguous between " + bestMatchNamesStr, part
+								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+								superTypeData.typeAssigned = True
+								unfinishedSuperCount :- 1
+							Else
+								' found multiple declarations, but none of them match
+								Local foundTypeDeclarationNamesStr:String = ""
+								For Local d:Int = 0 Until foundTypeDeclarations.length
+									If foundTypeDeclarationNamesStr Then foundTypeDeclarationNamesStr :+ ", "'[", ", ", "][d = foundTypeDeclarations.length - 1]]
+									' TODO: report fully qualified names (or at least relative to the current location) here
+									foundTypeDeclarationNamesStr :+ foundTypeDeclarations[d].NameWithTypeParameters()
+								Next
+								ReportError "Cannot find a type " + part.Identifier().lexerToken.value + " with " + desiredArity + Pluralize(" type parameter", desiredArity <> 1) + "; available types are: " + foundTypeDeclarationNamesStr, part
+								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+								superTypeData.typeAssigned = True
+								unfinishedSuperCount :- 1
+							End If
+						End If
+					Next
+				Next
+				
+				If Not anySuperTypesMissing Then
+					' all lookups for all super types completed, so mark the type as finished
+					' and record edges to all super types
+					If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, data.builder.Declaration().Name() + ": finished because all lookups done"
+					data.finished = True
+					unfinishedTypeCount :- 1
+					data.graphNode.edges = []
+					For Local superType:ITypeSymbol = EachIn data.builder.Declaration().SuperTypes()
+						Local superData:TBuilderData = TBuilderData.Find(superType.Declaration(), builderDatas)
+						If superData Then data.graphNode.edges :+ [superData.graphNode]
+					Next
+				End If
+			End If
+		Next
+		
+
+		If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, unfinishedTypeCount + " unfinished types, " + unfinishedSuperCount + " unfinished supers remaining"
+		
+		If unfinishedTypeCount > 0 And unfinishedSuperCount < unfinishedSuperCountAtStartOfPass Then
+			' making progress but not done yet
+			' do SCC/topological sort of the remaining unfinished nodes to determine the
+			' best order for the next pass
+			Local stronglyConnectedComponents:TGraphNode[][] = TopologicalSort(unfinishedGraphNodes)
+			If LoggingActive(ELogCategory.TypeCreation) Then LogNodesAndComponents unfinishedGraphNodes, stronglyConnectedComponents, builderDatas ' TODO: remove debug output (and standardio import)
+			unfinishedGraphNodes = FlattenAndRemoveFinished(stronglyConnectedComponents)
+			Function FlattenAndRemoveFinished:TGraphNode[](graphNodes:TGraphNode[][])
+				Local result:TGraphNode[]
+				For Local nn:TGraphNode[] = EachIn graphNodes
+					For Local n:TGraphNode = EachIn nn
+						If Not TBuilderData(n.obj).finished Then result :+ [n]
+					Next
+				Next
+				Return result
+			End Function
+		Else
+			' all finished or no more progress
+			' do SCC/topological sort over all nodes to find cycles and report errors
+			Local stronglyConnectedComponents:TGraphNode[][] = TopologicalSort(graphNodes)
+			If LoggingActive(ELogCategory.TypeCreation) Then LogNodesAndComponents unfinishedGraphNodes, stronglyConnectedComponents, builderDatas ' TODO: remove debug output (and standardio import)
+			
+			' set missing dependencies to error type
+			For Local graphNode:TGraphNode = EachIn unfinishedGraphNodes
+				Local data:TBuilderData = TBuilderData(graphNode.obj)
+				For Local superTypeData:TSuperTypeData = EachIn data.superTypeDatas
+					If Not superTypeData.typeAssigned Then SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
+				Next
+			Next
+			
+			' report errors for inheritance or lookup dependency cycles
+			' (except for direct self-inheritance, which was already reported before)
+			For Local component:TGraphNode[] = EachIn stronglyConnectedComponents
+				If component.length > 1 Then ' cyclic dependency
+					' in the case of cyclic dependencies, every affected super type for every type
+					' in this component will either show up as another type in the component
+					' (e.g. "Type A Extends B" + "Type B Extends A") or will already be the error type
+					' (e.g. "Type A Extends B.BB" + "Type B Extends A.AA")
+					' in the former case, all these super types will be replaced with the error type
+					Local componentDeclarationNamesStr:String = ""
+					For Local n:Int = 0 Until component.length
+						If componentDeclarationNamesStr Then componentDeclarationNamesStr :+ [", ", " and "][n = component.length - 1]
+						componentDeclarationNamesStr :+ TBuilderData(component[n].obj).builder.Declaration().NameWithTypeParameters()
+					Next
+					For Local graphNode:TGraphNode = EachIn component
+						Local data:TBuilderData = TBuilderData(graphNode.obj)
+						Local superTypes:ITypeSymbol[] = data.builder.Declaration().SuperTypes()
+						Assert superTypes.length = data.superTypeDatas.length Else "Super type count does not match data count"
+						For Local s:Int = 0 Until data.superTypeDatas.length
+							If IErrorTypeSymbol(superTypes[s]) Then
+								ReportError "Cyclic dependency between " + componentDeclarationNamesStr, superTypes[s].Syntax()
+							Else
+								For Local otherGraphNode:TGraphNode = EachIn component
+									Local otherData:TBuilderData = TBuilderData(otherGraphNode.obj)
+									If superTypes[s].Declaration() = otherData.builder.Declaration() Then
+										'ReportError "Cyclic inheritance between " + componentDeclarationNamesStr, data.superTypeDatas[s].typeSyntax
+										ReportError "Cyclic dependency between " + componentDeclarationNamesStr, data.superTypeDatas[s].typeSyntax
+										SetSuperType data.builder, data.superTypeDatas[s], ErrorTypeDeclarationSymbol
+									End If
+								Next
+							End If
+						Next
+					Next
+				End If
+			Next
+			
+			Exit
+		End If
+	Forever
+	
+	If LoggingActive(ELogCategory.TypeCreation) Then
+		Log ELogCategory.TypeCreation, "type creation done"
+		Log ELogCategory.TypeCreation, "processed types:"
+		For Local graphNode:TGraphNode = EachIn GraphNodes
+			Local data:TBuilderData = TBuilderData(graphNode.obj)
+			Log ELogCategory.TypeCreation, data.builder.Declaration().Name()
+			For Local s:ITypeSymbol = EachIn data.builder.Declaration().SuperTypes()
+				Log ELogCategory.TypeCreation, "  " + s.Declaration().Name()
+			Next
+		Next
+	End If
+	
+	Function LogNodesAndComponents(graphNodes:TGraphNode[], sccs:TGraphNode[][], builderDatas:TBuilderData[])
+		Log ELogCategory.TypeCreation, "active nodes and edges:"
+		For Local n:TGraphNode = EachIn graphNodes
+			Local str:String
+			Local builder:TTypeDeclarationSymbolBuilder = TTypeDeclarationSymbolBuilder(TBuilderData(n.obj).builder)
+			str :+ builder.Declaration().Name() + " -> "
+			Local estr:String[]
+			For Local e:TGraphNode = EachIn n.edges
+				Local eBuilder:TTypeDeclarationSymbolBuilder = TTypeDeclarationSymbolBuilder(TBuilderData(e.obj).builder)
+				estr :+ [eBuilder.Declaration().Name()]
+			Next
+			str :+ ", ".Join(estr)
+			Log ELogCategory.TypeCreation, str
+		Next
+		Log ELogCategory.TypeCreation, "sccs:"
+		For Local scc:TGraphNode[] = EachIn sccs
+			Local str:String
+			For Local n:TGraphNode = EachIn scc
+				Local builder:TTypeDeclarationSymbolBuilder = TTypeDeclarationSymbolBuilder(TBuilderData(n.obj).builder)
+				Local nData:TBuilderData = TBuilderData.Find(builder.Declaration(), builderDatas)
+				If str Then str :+ " <-> "
+				str :+ builder.Declaration().Name()
+				str :+ "(" + ["...", "finished"][nData.finished] + ", supers " + ["...", "finished"][nData.SuperTypesFinished(Null, builderDatas)] + ")"
+			Next
+			Log ELogCategory.TypeCreation, str
+		Next
+		Log ELogCategory.TypeCreation, "----------"
+	End Function
+	
+	Function SetSuperType(builder:TTypeDeclarationSymbolBuilder, superTypeData:TSuperTypeData, bestMatch:ITypeDeclarationSymbol)
+		If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, builder.Declaration().Name() + ": setting super " + ["(?)", "class", "interface #" + superTypeData.superInterfaceIndex][superTypeData.isSuperClass + 2 * superTypeData.isSuperInterface] + " to " + bestMatch.Name()
+		If TClassDeclarationSymbolBuilder(builder) Then
+			Local builder:TClassDeclarationSymbolBuilder = TClassDeclarationSymbolBuilder(builder)
+			Select True
+				Case superTypeData.isSuperClass
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperClass() Else "Duplicate set"
+					If IErrorTypeDeclarationSymbol(bestMatch) Then
+						builder.SetSuperClass New TErrorTypeSymbol(superTypeData.typeSyntax)
+					Else If IClassDeclarationSymbol(bestMatch) Then
+						builder.SetSuperClass New TClassSymbol(superTypeData.typeSyntax, IClassDeclarationSymbol(bestMatch))
+					Else
+						ReportError bestMatch.NameWithTypeParameters() + " is " + WithIndefiniteArticle(bestMatch.KindName().ToLower()) + ", not a class", superTypeData.typeSyntax
+						builder.SetSuperClass New TErrorTypeSymbol(superTypeData.typeSyntax)
+					End If
+				Case superTypeData.isSuperInterface
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					If IErrorTypeDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					Else If IInterfaceDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TInterfaceSymbol(superTypeData.typeSyntax, IInterfaceDeclarationSymbol(bestMatch))
+					Else
+						ReportError bestMatch.NameWithTypeParameters() + " is " + WithIndefiniteArticle(bestMatch.KindName().ToLower()) + ", not an interface", superTypeData.typeSyntax
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					End If
+				Default RuntimeError "Missing case"
+			End Select
+		Else If TStructDeclarationSymbolBuilder(builder) Then
+			Local builder:TStructDeclarationSymbolBuilder = TStructDeclarationSymbolBuilder(builder)
+			Select True
+				Case superTypeData.isSuperInterface
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					If IErrorTypeDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					Else If IInterfaceDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TInterfaceSymbol(superTypeData.typeSyntax, IInterfaceDeclarationSymbol(bestMatch))
+					Else
+						ReportError bestMatch.NameWithTypeParameters() + " is " + WithIndefiniteArticle(bestMatch.KindName().ToLower()) + ", not an interface", superTypeData.typeSyntax
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					End If
+				Default RuntimeError "Missing case"
+			End Select
+		Else If TInterfaceDeclarationSymbolBuilder(builder) Then
+			Local builder:TInterfaceDeclarationSymbolBuilder = TInterfaceDeclarationSymbolBuilder(builder)
+			Select True
+				Case superTypeData.isSuperInterface
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					If IErrorTypeDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					Else If IInterfaceDeclarationSymbol(bestMatch) Then
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TInterfaceSymbol(superTypeData.typeSyntax, IInterfaceDeclarationSymbol(bestMatch))
+					Else
+						ReportError bestMatch.NameWithTypeParameters() + " is " + WithIndefiniteArticle(bestMatch.KindName().ToLower()) + ", not an interface", superTypeData.typeSyntax
+						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
+					End If
+				Default RuntimeError "Missing case"
+			End Select
+		Else If TEnumDeclarationSymbolBuilder(builder) Then
+			Local builder:TEnumDeclarationSymbolBuilder = TEnumDeclarationSymbolBuilder(builder)
+			RuntimeError "TODO: enum super type?"
+		Else
+			RuntimeError "Missing case"
+		End If
+	End Function
+	
+	Function GetParentCodeBlockScope:TScope(syntax:ISyntax, scopeTree:TScopeTree)
 		Assert TCodeBlockSyntax(syntax.Parent()) Else "Declaration is not in a block"
-		Local scope:TScope = TScope(scopes[syntax.Parent()])
+		Local scope:TScope = TScope(scopeTree.scopes[syntax.Parent()])
 		Assert scope Else "Missing scope"
 		Return scope
 	End Function
 	
-	Function GetName:String(syntax:TTypeDeclarationSyntax)
-		If TClassDeclarationSyntax(syntax) Then
-			Return TClassDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
-		Else If TStructDeclarationSyntax(syntax) Then
-			Return TStructDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
-		Else If TInterfaceDeclarationSyntax(syntax) Then
-			Return TInterfaceDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
-		Else If TEnumDeclarationSyntax(syntax) Then
-			Return TEnumDeclarationSyntax(syntax).Name().Identifier().lexerToken.value
-		Else
-			RuntimeError "Missing case"
-		End If
+	Function LookUpName:IDeclarationSymbol[](nameSyntax:TQualifiedNameSyntax, scope:TScope) ' will look up the name starting from this scope
+		Assert nameSyntax.Parts() Else "Name is empty"
+		If Not nameSyntax.Parts()[0].Identifier() Then RuntimeError "TODO: global scope lookup"
+		For Local part:TQualifiedNamePartSyntax = EachIn nameSyntax.Parts()
+			Local key:TSymbolKey = New TSymbolKey(part.Identifier().lexerToken.value)
+			
+		Next
 	End Function
-	
-	Type TUnresolvedTypeDeclaration Extends TTypeDeclaration Final
-		Field ReadOnly syntax:TTypeDeclarationSyntax
-		
-		Method New(name:String, syntax:TTypeDeclarationSyntax)
-			Self.name = name
-			Self.syntax = syntax
-		End Method
-		
-		Method GetSyntax:TTypeDeclarationSyntax() Override
-			RuntimeError "no"
-		End Method
-	End Type
 End Function

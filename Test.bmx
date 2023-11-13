@@ -137,9 +137,14 @@ Function TestSymbols(doPrint:Int = True)
 		Local vt:TCollectTypeDeclarationSyntaxesVisitor = New TCollectTypeDeclarationSyntaxesVisitor
 		vt.Visit x
 		
-		CreateTypeDeclarations vt.typeDeclarationSyntaxes, vs.scopes
+		Local scopeTree:TScopeTree = New TScopeTree
+		scopeTree.scopes = vs.scopes
+		CreateTypeDeclarations TTypeDeclarationSyntax[](vt.typeDeclarationSyntaxes.ToArray()), scopeTree
 		
-		
+		For Local error:TSemanticError = EachIn SemanticErrors
+			Print "COMPILE ERROR: " + error.ToString()
+			'Notify "COMPILE ERROR: " + error.ToString()
+		Next
 		
 		'Local vs:TCreateScopesAndInsertDeclarationsVisitor = New TCreateScopesAndInsertDeclarationsVisitor
 		'vs.Visit x

@@ -463,17 +463,17 @@ Type TParser Implements IParser Final
 		Return TTypeSyntaxData.Create(Null, TQualifiedNameTypeBaseSyntaxData.Create(GenerateMissingQualifiedName()), Null, Null, [])
 	End Method
 	
-	Method ReportError(error:String)
+	Method ReportError(message:String)
 		' TODO: allow specifying the code location of the error
-		parseErrors.AddLast New TParseError(currentToken, error)
-		If ThrowOnParseError Then Throw error
+		parseErrors.AddLast New TParseError(message, currentToken)
+		If ThrowOnParseError Then Throw message
 	End Method
 	
-	' all Parse* methods either succeed by returning a valid object (in which case they can still
-	' report errors) or they fail by returning Null (in which case they must return with the
-	' parser set to the same state as upon entering so as to avoid tokens getting lost)
+	' all Parse* methods either succeed and return a valid object (although they may still
+	' report errors) or they fail and return Null (in which case they must restore the
+	' parser to the same state it was in upon entering to avoid any tokens getting lost)
 	' most Parse* methods immediately either fail or lock themselves into success after examining
-	' the first token at the current position (making failure cheap), but some backtrack
+	' the first token at the current position (making failure cheap), but some involve backtracking
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Top-Level ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
@@ -914,7 +914,7 @@ Type TParser Implements IParser Final
 		
 		Select kind
 			Case ETypeKind.Class Return TClassDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, extendsKeyword, superClass, implementsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
-			Case ETypeKind.Struct_ Return TStructDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, modifiers, metaData, body, terminatorKeyword)
+			Case ETypeKind.Struct_ Return TStructDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, Null, Null, modifiers, metaData, body, terminatorKeyword)
 			Case ETypeKind.Interface_ Return TInterfaceDeclarationSyntaxData.Create(initiatorKeyword, name, typeParameters, extendsKeyword, superInterfaces, modifiers, metaData, body, terminatorKeyword)
 			Default RuntimeError "Missing case"
 		End Select

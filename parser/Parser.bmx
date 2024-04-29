@@ -706,6 +706,8 @@ Type TParser Implements IParser Final
 		Local moduleName:TQualifiedNameSyntaxData = ParseModuleName()
 		If moduleName Then Return TImportDirectiveSyntaxData.Create(keyword, TImportSourceSyntaxData.Create(moduleName, Null))
 		
+		' TODO: Private Import, Import ... As ...
+		
 		ReportError "Expected file path or module name"
 		Return TImportDirectiveSyntaxData.Create(keyword, TImportSourceSyntaxData.Create(GenerateMissingQualifiedName(), Null))
 	End Method
@@ -1782,6 +1784,14 @@ Type TParser Implements IParser Final
 		If Not expression Then Return Null
 		
 		If Not IsValidExpressionType(expression) Then
+			' if the expression that was parsed is a call expression, the parser will
+			' backtrack here and parse it again as an expression statement;
+			' the call expression that was just parsed is not reused in this case, because
+			' paren-less call statements and call expressions have different rules as to how
+			' "<" and ">" should be parsed, e.g. "a<b> c" contains a type application in case
+			' of a paren-less call statement, but two relational operators otherwise);
+			' call expressions cannot just be excluded from parsing here though, because they
+			' can still be part of a paren-less call statement, e.g. "x().y"
 			RestoreState state
 			Return Null
 		End If
@@ -2213,9 +2223,7 @@ Type TParser Implements IParser Final
 		Local postfixExpression:IPostfixCompatibleExpressionSyntaxData
 		postfixExpression = ParseMemberAccessExpression(arg);    If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
 		postfixExpression = ParseIndexExpression(arg);           If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
-		If Not parenlessCallStatement Then
-			postfixExpression = ParseCallExpression(arg);            If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
-		End If
+		postfixExpression = ParseCallExpression(arg);            If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
 		postfixExpression = ParseTypeApplicationExpression(arg, parenlessCallStatement); If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression, parenlessCallStatement)
 		'postfixExpression = ParseTypeAssertionExpression(arg);   If postfixExpression Then Return ParsePostfixCompatibleExpression(postfixExpression)
 		Return arg
@@ -2377,13 +2385,18 @@ Type TParser Implements IParser Final
 		'       problem: "a < b(x > (y + z))" should not be parsed as a generic
 		
 		
-		
 		If Not parenlessCallStatement Then
+			' discard the parsed type application if the next token suggests that it
+			' should be a chain of relational expressions instead;
+			' this does NOT apply when trying to parse a paren-less call statement, because
+			' the first argument for said call might be (almost) any expression,
+			' e.g.: "a<b> Not c" is a valid paren-less call of a generic function, but in any
+			' other context, the "Not" would make this two comparisons instead of a type application
 			If Not CurrentTokenCanAppearAfterTypeArgumentList(Self) Then
 				RestoreState state
 				Return Null
 			End If
-			Function CurrentTokenCanAppearAfterTypeArgumentList:Int(self_:TParser)
+			Function CurrentTokenCanAppearAfterTypeArgumentList:Int(self_:TParser) ' (in the same statement)
 				' this rejects all tokens that can be the start of an expression appearing on the rhs of
 				' a relational expression but not appear directly after a type argument list in valid code
 				Select self_.currentToken.Kind()
@@ -2391,20 +2404,19 @@ Type TParser Implements IParser Final
 					Case TTokenKind.Not_, TTokenKind.Asc_, TTokenKind.Chr_, TTokenKind.Len_, TTokenKind.SizeOf_, TTokenKind.Varptr_
 						Return False
 					' open bracket of array literal or indexing (cannot be a type suffix in this context)
-					Case TTokenKind.LBracket ' avoids expensive path in ParsePrimaryExpression
+					Case TTokenKind.LBracket ' avoids expensive path in ParsePrimaryExpression in Default case below
 						Return False
 					' open parenthesis of call (takes priority over paren expression after a possible type argument list)
-					Case TTokenKind.LParen ' avoids expensive path in ParsePrimaryExpression
+					Case TTokenKind.LParen ' avoids expensive path in ParsePrimaryExpression in Default case below
 						Return True
+					' New keyword of New expression
+					Case TTokenKind.New_ ' avoids expensive path in ParsePrimaryExpression in Default case below
+						Return False
 					Default
-						' types with keyword base
-						If self_.ParseKeywordTypeBase() Then
-							Return False
-						End If
-						' primary expressions, excluding paren expression
-						If self_.ParsePrimaryExpression() Then
-							Return False
-						End If
+						' type keyword of any type with a keyword base
+						If self_.ParseKeywordTypeBase() Then Return False
+						' any primary expression, excluding paren expression
+						If self_.ParsePrimaryExpression() Then Return False
 						' anything else
 						Return True
 				End Select
@@ -2419,6 +2431,8 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method ParsePrimaryExpression:IPrimaryExpressionSyntaxData()
+		' if any of these check more than just the current token, adjust the check in
+		' CurrentTokenCanAppearAfterTypeArgumentList in ParseTypeApplicationExpression
 		Local primaryExpression:IPrimaryExpressionSyntaxData
 		primaryExpression = ParseParenExpression();   If primaryExpression Then Return primaryExpression
 		primaryExpression = ParseNewExpression();     If primaryExpression Then Return primaryExpression
@@ -2514,6 +2528,8 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method ParseLiteralExpression:TLiteralExpressionSyntaxData()
+		' if any of these check more than just the current token, adjust the check in
+		' CurrentTokenCanAppearAfterTypeArgumentList in ParseTypeApplicationExpression
 		Local literalExpression:TLiteralExpressionSyntaxData
 		literalExpression = ParseArrayLiteralExpression();   If literalExpression Then Return literalExpression
 		literalExpression = ParseNumericLiteralExpression(); If literalExpression Then Return literalExpression

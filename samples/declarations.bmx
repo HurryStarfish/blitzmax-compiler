@@ -1,7 +1,20 @@
-SuperStrict
-Framework BRL.Blitz
+'SuperStrict
+'Framework BRL.Blitz
 
-'Rem
+'T.F 1, 2, 3
+'T.F(1, 2, 3).M
+
+Rem
+Type A End Type
+Type B
+	'Function F()
+		Type C Extends D End Type
+		Type D Extends A End Type
+	'End Function
+End Type
+End Rem
+
+Rem
 Interface A Extends C.E, C.D
 	Interface B End Interface
 End Interface
@@ -10,7 +23,7 @@ Interface C Extends A
 		Interface E End Interface
 	End Interface
 End Interface
-'End Rem
+End Rem
 Rem
 Type E Extends B.X End Type
 Type A Extends B Implements I End Type

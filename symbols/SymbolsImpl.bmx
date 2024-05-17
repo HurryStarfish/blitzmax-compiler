@@ -52,7 +52,7 @@ Type TClassDeclarationSymbol Extends TTypeDeclarationSymbol Implements IClassDec
 	
 	Method New(syntax:TClassDeclarationSyntax)
 		Self._syntax = syntax
-		Self._name = syntax.name.identifier.lexerToken.value
+		Self._name = syntax.Name().Identifier().lexerToken.value
 		Self._isReferrableByName = True
 	End Method
 	
@@ -101,7 +101,7 @@ Type TStructDeclarationSymbol Extends TTypeDeclarationSymbol Implements IStructD
 	
 	Method New(syntax:TStructDeclarationSyntax)
 		Self._syntax = syntax
-		Self._name = syntax.name.identifier.lexerToken.value
+		Self._name = syntax.Name().Identifier().lexerToken.value
 		Self._isReferrableByName = True
 	End Method
 	
@@ -146,7 +146,7 @@ Type TInterfaceDeclarationSymbol Extends TTypeDeclarationSymbol Implements IInte
 	
 	Method New(syntax:TInterfaceDeclarationSyntax)
 		Self._syntax = syntax
-		Self._name = syntax.name.identifier.lexerToken.value
+		Self._name = syntax.Name().Identifier().lexerToken.value
 		Self._isReferrableByName = True
 	End Method
 	
@@ -190,7 +190,7 @@ Type TEnumDeclarationSymbol Extends TTypeDeclarationSymbol Implements IEnumDecla
 	
 	Method New(syntax:TEnumDeclarationSyntax)
 		Self._syntax = syntax
-		Self._name = syntax.name.identifier.lexerToken.value
+		Self._name = syntax.Name().Identifier().lexerToken.value
 		Self._isReferrableByName = True
 	End Method
 	
@@ -229,7 +229,7 @@ Type TTypeParameterDeclarationSymbol Extends TTypeDeclarationSymbol Implements I
 	
 	Method New(syntax:TTypeParameterDeclaratorSyntax)
 		Self._syntax = syntax
-		Self._name = syntax.name.identifier.lexerToken.value
+		Self._name = syntax.Name().Identifier().lexerToken.value
 		Self._isReferrableByName = True
 	End Method
 	

@@ -19,7 +19,7 @@ $(kind) $(typename(name, "SyntaxData"))$(iff(extends, " Extends "))$(list(map(ex
 		?
 	End Method
 	
-	public
+	Public
 	Method CreateSyntax:$(typename(name, "Syntax"))(parent:ISyntaxOrSyntaxTree) Override
 		Return New $(typename(name, "Syntax"))(parent, Self)
 	End Method

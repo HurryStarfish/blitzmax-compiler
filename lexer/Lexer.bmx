@@ -73,7 +73,7 @@ Type TLexer Implements ILexer Final
 				addToList:TLink(list:TList, token:Object) ..
 			)
 		End Extern
-		Global tokenKindGlobals:TList = TTypeId.ForName("TTokenKind")._globalsList
+		Global tokenKindGlobals:TGlobal[] = TGlobal[](TTypeId.ForName("TTokenKind").Globals().ToArray())
 		Function TokenKindFromName:TTokenKind(name:String)
 			For Local g:TGlobal = EachIn tokenKindGlobals
 				Local kind:TTokenKind = TTokenKind(g.Get())

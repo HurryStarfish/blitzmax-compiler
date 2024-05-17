@@ -1,23 +1,23 @@
 
 ? Debug
 ' verify types
-Global iSyntaxTypeId:TTypeId = TTypeId.ForName("ISyntax")
-Assert iSyntaxTypeId Else "ISyntax type not found"
-Global tSyntaxTokenTypeId:TTypeId = TTypeId.ForName("TSyntaxToken")
-Assert tSyntaxTokenTypeId Else "TSyntaxToken type not found"
+Global ISyntaxDataOrSyntaxTokenTypeId:TTypeId = TTypeId.ForName("ISyntaxDataOrSyntaxToken")
+Assert ISyntaxDataOrSyntaxTokenTypeId Else "ISyntaxDataOrSyntaxToken type not found"
+Global ISyntaxDataTypeId:TTypeId = TTypeId.ForName("ISyntaxData")
+Assert ISyntaxDataTypeId Else "ISyntaxData type not found"
 For Local t:TTypeId = EachIn TTypeId.EnumTypes()
-	If t.Interfaces() And t.Interfaces().Contains(iSyntaxTypeId) Then
-		' verify presence of ISyntaxOrSyntaxToken field
-		Local hasSyntaxOrSyntaxTokenField:Int = False
-		'For Local f:TField = EachIn GetAllFields(t)
-		'	If f.TypeId().ExtendsType(tSyntaxTokenTypeId) Then hasSyntaxOrSyntaxTokenField = True
-		'	If f.TypeId().Interfaces().Contains(iSyntaxTypeId) Then hasSyntaxOrSyntaxTokenField = True
-		'Next
-		' TODO: verify that the field type is a subtype of ISyntaxOrSyntaxToken or an array thereof
-		hasSyntaxOrSyntaxTokenField = True
-		If Not hasSyntaxOrSyntaxTokenField Then RuntimeError "Type " + t.Name() + " which implements ISyntax must have at least one ISyntaxOrSyntaxToken field"
+	If t.ExtendsType(ISyntaxDataTypeId) And Not t.IsAbstract() Then
+		' verify presence of ISyntaxDataOrSyntaxToken field
+		Local hasSyntaxDataOrSyntaxTokenField:Int = False
+		For Local f:TField = EachIn t.EnumFields()
+			If f.TypeId().ExtendsType(ISyntaxDataOrSyntaxTokenTypeId) Or (f.TypeId().ExtendsType(ArrayTypeId) And f.TypeId().ElementType().ExtendsType(ISyntaxDataOrSyntaxTokenTypeId)) Then
+				hasSyntaxDataOrSyntaxTokenField = True
+				Exit
+			End If
+		Next
+		If Not hasSyntaxDataOrSyntaxTokenField Then RuntimeError "Type " + t.Name() + " which is non-abstract and implements " + ISyntaxDataTypeId.Name() + " must have at least one field of a type that implements " + ISyntaxDataOrSyntaxTokenTypeId.Name() + " (or an array of such a type)"
 		' verify correct use of {nullable}
-		For Local f:TField = EachIn GetAllFields(t)
+		For Local f:TField = EachIn t.EnumFields()
 			If f.MetaData("nullable") Then
 				If Not f.TypeId().ExtendsType(ObjectTypeId) Then RuntimeError "Cannot use {nullable} on non-object fields (" + t.Name() + "." + f.Name() + ")"
 				If f.TypeId().ExtendsType(StringTypeId) Then RuntimeError "Cannot use {nullable} on String fields (" + t.Name() + "." + f.Name() + ")"
@@ -29,7 +29,7 @@ Next
 
 Function Verify(syntaxData:ISyntaxData)
 	Local t:TTypeId = TTypeId.ForObject(syntaxData)
-	For Local f:TField = EachIn GetAllFields(t)
+	For Local f:TField = EachIn t.EnumFields()
 		Local fValue:Object = f.Get(syntaxData)
 		If Not fValue And Not f.TypeId().ExtendsType(ArrayTypeId) And Not TTypeId.ForObject(fValue) And Not f.MetaData("nullable") Then
 			' check for {nullable} violations

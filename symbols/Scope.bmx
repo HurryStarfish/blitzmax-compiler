@@ -42,7 +42,7 @@ Type TScopeTree Final
 		
 		? Debug
 			Local scopesContainsStartingScope:Int = False
-			For Local s:TScope = EachIn scopes.Values
+			For Local s:TScope = EachIn scopes.Values()
 				If s = startingScope Then scopesContainsStartingScope = True; Exit
 			Next
 			If Not scopesContainsStartingScope Then RuntimeError "Unknown scope"

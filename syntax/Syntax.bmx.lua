@@ -156,11 +156,25 @@ nodetypes = {
 		},
 		{
 			name = "TExternClassDeclaration", extends = {"TExternTypeDeclaration"},
-			kind = "Type"
+			kind = "Type",
+			fields = {
+				{ name = "initiatorKeyword", type = Token, minor = true },
+				{ name = "name", type = "TName" },
+				-- TODO
+				-- { name = "body", type = "TCodeBlock" },
+				{ name = "terminatorKeyword", type = Token, minor = true }
+			}
 		},
 		{
 			name = "TExternStructDeclaration", extends = {"TExternTypeDeclaration"},
-			kind = "Type"
+			kind = "Type",
+			fields = {
+				{ name = "initiatorKeyword", type = Token, minor = true },
+				{ name = "name", type = "TName" },
+				-- TODO
+				-- { name = "body", type = "TCodeBlock" },
+				{ name = "terminatorKeyword", type = Token, minor = true }
+			}
 		},
 		{
 			name = "TExternFunctionDeclaration", extends = {"TExternDeclaration"},
@@ -175,7 +189,14 @@ nodetypes = {
 		},
 		{
 			name = "TExternVariableDeclaration", extends = {"TExternDeclaration"},
-			kind = "Type"
+			kind = "Type",
+			fields = {
+				{ name = "declarationKeyword", type = Token, nullable = true }, -- null for parameters
+				--{ name = "modifiers", type = "TVariableModifier[]" },
+				-- TODO
+				{ name = "declarators", type = "TVariableDeclaratorList" },
+				{ name = "metaData", type = "TMetaData", nullable = true }
+			}
 		},
 		{
 			name = "TTypeDeclaration", extends = {"T"}, implements = {"IDeclaration"},
@@ -1090,7 +1111,7 @@ nodetypes = {
 			name = "TTypeParameterDeclaratorList", extends = {"T"},
 			kind = "Type",
 			fields = {
-				{ name = "elements", type = "TTypeParameterDeclaratorListElement[]", nullable = true }
+				{ name = "elements", type = "TTypeParameterDeclaratorListElement[]" }
 			}
 		},
 		{

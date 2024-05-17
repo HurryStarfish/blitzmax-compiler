@@ -36,7 +36,7 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, s
 				Local d:Object = additionalData.ValueForKey(o)
 				If d Then sb.Append " --- "; sb.Append d.ToString()
 			End If
-			For Local f:TField = EachIn GetAllFields(dt)
+			For Local f:TField = EachIn dt.EnumFields()
 				If Not showMinorFields And f.MetaData("minor") Then Continue
 				Local m:TMethod = t.FindMethod(f.Name())
 				sb.Append "~n"

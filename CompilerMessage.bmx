@@ -2,7 +2,7 @@ SuperStrict
 
 
 
-Type TCompilerMessage Final ' TODO: turn into struct once reflection is less broken
+Type TCompilerMessage Final ' TODO: turn into struct?
 	
 	Field ReadOnly message:String
 	

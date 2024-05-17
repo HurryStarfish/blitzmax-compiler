@@ -792,7 +792,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 			Local builder:TClassDeclarationSymbolBuilder = TClassDeclarationSymbolBuilder(builder)
 			Select True
 				Case superTypeData.isSuperClass
-					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperClass() Else "Duplicate set"
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration().SuperClass() Else "Duplicate set"
 					If IErrorTypeDeclarationSymbol(bestMatch) Then
 						builder.SetSuperClass New TErrorTypeSymbol(superTypeData.typeSyntax)
 					Else If IClassDeclarationSymbol(bestMatch) Then
@@ -802,7 +802,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 						builder.SetSuperClass New TErrorTypeSymbol(superTypeData.typeSyntax)
 					End If
 				Case superTypeData.isSuperInterface
-					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration().SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
 					If IErrorTypeDeclarationSymbol(bestMatch) Then
 						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
 					Else If IInterfaceDeclarationSymbol(bestMatch) Then
@@ -817,7 +817,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 			Local builder:TStructDeclarationSymbolBuilder = TStructDeclarationSymbolBuilder(builder)
 			Select True
 				Case superTypeData.isSuperInterface
-					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration().SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
 					If IErrorTypeDeclarationSymbol(bestMatch) Then
 						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
 					Else If IInterfaceDeclarationSymbol(bestMatch) Then
@@ -832,7 +832,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 			Local builder:TInterfaceDeclarationSymbolBuilder = TInterfaceDeclarationSymbolBuilder(builder)
 			Select True
 				Case superTypeData.isSuperInterface
-					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration.SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
+					Assert IErrorTypeDeclarationSymbol(bestMatch) Or Not builder.Declaration().SuperInterfaces()[superTypeData.superInterfaceIndex] Else "Duplicate set"
 					If IErrorTypeDeclarationSymbol(bestMatch) Then
 						builder.SetSuperInterface superTypeData.superInterfaceIndex, New TErrorTypeSymbol(superTypeData.typeSyntax)
 					Else If IInterfaceDeclarationSymbol(bestMatch) Then

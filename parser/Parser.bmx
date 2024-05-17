@@ -205,7 +205,7 @@ Type TParser Implements IParser Final
 			Wend
 		End Function
 		
-		Local atLineStart:Int = Not currentToken Or currentToken.kind = TTokenKind.Linebreak
+		Local atLineStart:Int = Not currentToken Or currentToken.Kind() = TTokenKind.Linebreak
 		If Not currentToken Then ' first call, start of file
 			' go to the first non-trivia token and gather leading trivia on the way, which would normally have been done on the previous call
 			' TODO: handle line continuations at the start of the file corrently
@@ -993,7 +993,7 @@ Type TParser Implements IParser Final
 		Throw "TODO"
 		
 		Local externTypeMember:TExternDeclarationSyntaxData
-		externTypeMember = ParseExternTypeDeclaration();     If externTypeMember Then Return externTypeMember
+		'externTypeMember = ParseExternTypeDeclaration();     If externTypeMember Then Return externTypeMember
 		externTypeMember = ParseExternFunctionDeclaration(); If externTypeMember Then Return externTypeMember
 		externTypeMember = ParseExternVariableDeclaration(); If externTypeMember Then Return externTypeMember
 		Return Null

@@ -9,17 +9,12 @@ Private
 Const TopDownVisitMethodName:String = "VisitTopDown"
 Const BottomUpVisitMethodName:String = "VisitBottomUp"
 
-Global ISyntaxType:TTypeId = TTypeId.ForName("ISyntax")
-Global TSyntaxTokenType:TTypeId = TTypeId.ForName("TSyntaxToken")
-Assert ISyntaxType Else "ISyntax type not found"
-Assert TSyntaxTokenType Else "ISyntaxToken type not found"
+Global ISyntaxOrSyntaxTokenTypeId:TTypeId = TTypeId.ForName("ISyntaxOrSyntaxToken")
+Assert ISyntaxOrSyntaxTokenTypeId Else "ISyntaxOrSyntaxToken type not found"
 
 
 
 Public
-' WARNING: do not write visitor methods that accept an interface as their parameter type -
-'          this doesn't work because reflection is broken
-
 ' This class can be inherited to create a syntax visitor.
 ' Syntax visitors can define "VisitTopDown" and/or "VisitBottomUp" visitor methods to visit
 ' nodes in the syntax tree. Such visitor methods must have a first parameter of type
@@ -77,10 +72,7 @@ End Struct
 
 Function GetVisitMethods:SVisitMethodData[](visitorType:TTypeId)
 	Local visitMethods:SVisitMethodData[]
-	' TODO: BROKEN! this may randomly skip some of the methods because reflection is broken; this
-	' seems to be random(!) per build (different results when the same code is compiled multiple times)
-	' e.g.: FindMethod returns Null despite the method being present in the TTypeId's _methodsList
-	For Local m:TMethod = EachIn visitorType._methodsList
+	For Local m:TMethod = EachIn visitorType.EnumMethods()
 		Local direction:EVisitDirection
 		Select m.Name()
 			Case TopDownVisitMethodName direction = EVisitDirection.TopDown
@@ -92,9 +84,7 @@ Function GetVisitMethods:SVisitMethodData[](visitorType:TTypeId)
 		Local dataGroup:String = m.MetaData("DataGroup")
 		? Debug
 			Assert argTypes.length = 1 Or argTypes.length = 2 Else "Invalid parameter count on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes[0] = ISyntaxType Or Not argTypes[0].IsInterface() Else "Invalid first parameter type (must be a subtype of ISyntaxOrSyntaxToken, can't use interfaces other than ISyntax due to reflection being broken) on " + visitorType.Name() + "." + m.Name()
-			Assert argTypes[0].ExtendsType(ISyntaxType) Or argTypes[0].Interfaces().Contains(ISyntaxType) Or ..
-				   argTypes[0].ExtendsType(TSyntaxTokenType) Else "Invalid first parameter type on " + visitorType.Name() + "." + m.Name()
+			Assert argTypes[0].ExtendsType(ISyntaxOrSyntaxTokenTypeId) Else "Invalid first parameter type (must be a subtype of " + ISyntaxOrSyntaxTokenTypeId.Name() + ") on " + visitorType.Name() + "." + m.Name()
 			If returnType = VoidTypeId And argTypes.length = 1 Then
 				Assert Not dataGroup Else "DataGroup specified but no data parameter on " + visitorType.Name() + "." + m.Name() 
 			Else If argTypes.length = 2 Then
@@ -102,25 +92,25 @@ Function GetVisitMethods:SVisitMethodData[](visitorType:TTypeId)
 					Case EVisitDirection.TopDown
 						Assert returnType.ExtendsType(ObjectTypeId) Else "Invalid return type (must be void or an object type) on " + visitorType.Name() + "." + m.Name()
 						Assert argTypes[1].ExtendsType(ObjectTypeId) Else "Invalid second parameter type (must be an object type) on " + visitorType.Name() + "." + m.Name()
-						Assert ExtendsOrImplements(returnType, argTypes[1]) Else "Return type and second parameter type do not match on " + visitorType.Name() + "." + m.Name()
+						Assert returnType.ExtendsType(argTypes[1]) Else "Return type and second parameter type do not match on " + visitorType.Name() + "." + m.Name()
 						For Local other:SVisitMethodData = EachIn visitMethods
 							If other.direction = direction And other.hasDataParameter And other.dataGroup = dataGroup Then
-								Assert Not (ExtendsOrImplements(argTypes[0], other.visitMethod.ArgTypes()[0]) Or ExtendsOrImplements(other.visitMethod.ArgTypes()[0], argTypes[0])) Else "First parameter type overlaps between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
-								Assert ExtendsOrImplements(returnType, other.visitMethod.ArgTypes()[1]) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
-								Assert ExtendsOrImplements(other.visitMethod.ReturnType(), argTypes[1]) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert Not (argTypes[0].ExtendsType(other.visitMethod.ArgTypes()[0]) Or other.visitMethod.ArgTypes()[0].ExtendsType(argTypes[0])) Else "First parameter type overlaps between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert returnType.ExtendsType(other.visitMethod.ArgTypes()[1]) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert other.visitMethod.ReturnType().ExtendsType(argTypes[1]) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
 							End If
 						Next
 					Case EVisitDirection.BottomUp
 						Assert returnType.ExtendsType(ObjectTypeId) Else "Invalid return type (must be void or an object type) on " + visitorType.Name() + "." + m.Name()
 						Assert argTypes[1].ExtendsType(ArrayTypeId) Else "Invalid second parameter type (must be an array type) on " + visitorType.Name() + "." + m.Name()
-						Assert argTypes[1].Name.EndsWith("[]") Else "Invalid second parameter type dimensions on " + visitorType.Name() + "." + m.Name() ' does reflection seriously not have a proper way to check this???
+						Assert argTypes[1].Dimensions() = 1 Else "Invalid second parameter type dimensions on " + visitorType.Name() + "." + m.Name()
 						Assert argTypes[1].ElementType().ExtendsType(ObjectTypeId) Else "Invalid second parameter type (element type must be an object type) on " + visitorType.Name() + "." + m.Name()
-						Assert ExtendsOrImplements(returnType, argTypes[1].ElementType()) Else "Return type and second parameter type do not match on " + visitorType.Name() + "." + m.Name()
+						Assert returnType.ExtendsType(argTypes[1].ElementType()) Else "Return type and second parameter type do not match on " + visitorType.Name() + "." + m.Name()
 						For Local other:SVisitMethodData = EachIn visitMethods
 							If other.direction = direction And other.hasDataParameter And other.dataGroup = dataGroup Then
-								Assert Not (ExtendsOrImplements(argTypes[0], other.visitMethod.ArgTypes()[0]) Or ExtendsOrImplements(other.visitMethod.ArgTypes()[0], argTypes[0])) Else "First parameter type overlaps between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
-								Assert ExtendsOrImplements(returnType, other.visitMethod.ArgTypes()[1].ElementType()) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
-								Assert ExtendsOrImplements(other.visitMethod.ReturnType(), argTypes[1].ElementType()) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert Not (argTypes[0].ExtendsType(other.visitMethod.ArgTypes()[0]) Or other.visitMethod.ArgTypes()[0].ExtendsType(argTypes[0])) Else "First parameter type overlaps between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert returnType.ExtendsType(other.visitMethod.ArgTypes()[1].ElementType()) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
+								Assert other.visitMethod.ReturnType().ExtendsType(argTypes[1].ElementType()) Else "Return type and second parameter type do not match between " + visitorType.Name() + "." + m.Name() + " overloads in " + ["default data group", "data group ~q" + dataGroup + "~q"][dataGroup <> ""]
 							End If
 						Next
 					Default RuntimeError "Missing case"
@@ -212,7 +202,7 @@ Function VisitSyntax(visitor:TSyntaxVisitor, rootSyntax:ISyntax)
 					Local dataGroupIndex:Int = GetDataGroupIndex(dataGroups, visitMethods[m])
 					'bottomUpData[dataGroupIndex] = [Visit(visitMethods[m].visitMethod, visitor, syntaxOrSyntaxToken, bottomUpDataInner[dataGroupIndex])]
 					bottomUpDataInner[dataGroupIndex] = [Visit(visitMethods[m].visitMethod, visitor, syntaxOrSyntaxToken, bottomUpDataInner[dataGroupIndex])]
-					' different visit methods in the same data group may not handle the same nodes,
+					' different visit methods in the same data group must not handle the same nodes,
 					' so no attempt is made to check whether return values overwrite each other here
 				Else
 					Visit visitMethods[m].visitMethod, visitor, syntaxOrSyntaxToken
@@ -232,15 +222,11 @@ Function VisitSyntax(visitor:TSyntaxVisitor, rootSyntax:ISyntax)
 		End Function
 		
 		Function Visit(visitMethod:TMethod, visitor:TSyntaxVisitor, nodeOrToken:ISyntaxOrSyntaxToken)
-			'visitMethod.Invoke visitor, [node] ' .Invoke is broken
-			Local fptr(v:Object, s:Object) = visitMethod._ref
-			fptr visitor, nodeOrToken
+			visitMethod.Invoke visitor, [nodeOrToken]
 		End Function
 		Function Visit:Object(visitMethod:TMethod, visitor:TSyntaxVisitor, nodeOrToken:ISyntaxOrSyntaxToken, visitMethodDataParameter:Object)
-			'visitMethod.Invoke visitor, [node] ' .Invoke is broken
 			If Not visitMethodDataParameter And visitMethod.ArgTypes()[1] = StringTypeId Then visitMethodDataParameter = "" ' aaaaaaaaaaaaa
-			Local fptr:Object(v:Object, s:Object, p:Object) = visitMethod._ref
-			Return fptr(visitor, nodeOrToken, visitMethodDataParameter)
+			Return visitMethod.Invoke(visitor, [nodeOrToken, visitMethodDataParameter])
 		End Function
 	End Function
 End Function

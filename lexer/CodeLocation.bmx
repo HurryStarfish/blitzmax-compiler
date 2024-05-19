@@ -19,11 +19,18 @@ Struct SCodeLocation
 		Return line > 0 And column > 0 And filePath
 	End Method
 	
-	Method ToString:String(includeFullFilePath:Int = False)
+	Method ToString:String(includeFullFilePath:Int)
+		Local str:String
 		If includeFullFilePath Then
-			Return "l:" + line + " c:" + column + " in " + StripDir(filePath) + " [" + filePath + "]"
+			str = " [" + filePath + "]"
 		Else
-			Return "l:" + line + " c:" + column + " in " + StripDir(filePath)
+			str = StripDir(filePath)
 		End If
+		str :+ " l:" + line + " c:" + column
+		Return str
+	End Method
+	
+	Method ToString:String()
+		Return ToString(False)
 	End Method
 End Struct

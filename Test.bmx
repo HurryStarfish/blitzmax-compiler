@@ -148,7 +148,7 @@ Function TestSymbols(doPrint:Int = True)
 		
 		'Local vs:TCreateScopesAndInsertDeclarationsVisitor = New TCreateScopesAndInsertDeclarationsVisitor
 		'vs.Visit x
-		Print SyntaxToString(x.GetRootSyntax(), False, vs.scopes)
+		Print SyntaxToString(x.GetRootSyntax(), ESyntaxToStringOptions.ShowMinorFields | ESyntaxToStringOptions.ShowCodeRanges, vs.scopes)
 	End If
 End Function
 

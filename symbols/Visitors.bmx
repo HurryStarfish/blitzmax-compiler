@@ -48,7 +48,7 @@ Type TCreateScopesVisitor Extends TSyntaxVisitor Final
 		                           TIfBranchSyntax(parentSyntax) Or ..
 		                           TSelectBranchSyntax(parentSyntax) Or ..
 		                           TTryBranchSyntax(parentSyntax) Or ..
-		                           TIncludeDirectiveSyntax(parentSyntax.Parent()) And TIncludeDirectiveSyntax(parentSyntax.Parent()).Body().Block() = syntax
+		                           TIncludedCodeSyntax(parentSyntax.Parent()) And TIncludedCodeSyntax(parentSyntax.Parent()).Body().Block() = syntax
 		scope = New TScope(GetScope(parentSyntax, scopes), inheritsLocals)
 		scopes[syntax] = scope
 		' TODO

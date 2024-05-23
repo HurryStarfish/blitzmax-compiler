@@ -62,7 +62,7 @@ Function ChildrenToArray:Object[](c1:Object = Null, c2:Object = Null, c3:Object 
 				If ISyntax(cAsArray[i]) Or ISyntaxData(cAsArray[i]) Or TSyntaxToken(cAsArray[i]) Then nonNullElements :+ 1
 			Next
 			Return nonNullElements
-		Else If ISyntax(c) Or ISyntaxData(c) Or TSyntaxToken(c) Then ' need this cast to filter out empty arrays
+		Else If ISyntax(c) Or ISyntaxData(c) Or TSyntaxToken(c) Then ' need this cast to filter out empty arrays and fields of other types
 			Return 1
 		Else
 			Return 0

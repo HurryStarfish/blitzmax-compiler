@@ -34,16 +34,9 @@ Type TLexer Implements ILexer Final
 		Self.filePath = filePath
 		Self.tokens = ScanFile()
 		Self.currentTokenLink = tokens.FirstLink()
-		Self.eofToken = New TLexerToken(Null, TTokenKind.Eof, EOFTokenCodeLocation())
+		Self.eofToken = New TLexerToken(Null, TTokenKind.Eof)
 	End Method
 	
-	Private
-	Method EOFTokenCodeLocation:SCodeLocation() ' TODO: make local function in constructor once that isn't broken in the compiler
-		Local lastToken:TLexerToken = TLexerToken(tokens.Last())
-		If lastToken Then Return lastToken.CodeRange().endLocation Else Return New SCodeLocation(filePath, 1, 1)
-	End Method
-	
-	Public
 	Method NextToken:TLexerToken() Override
 		If currentTokenLink Then
 			Local token:TLexerToken = TLexerToken(currentTokenLink.Value())
@@ -87,7 +80,7 @@ Type TLexer Implements ILexer Final
 		End Function
 		
 		Function CreateToken:TLexerToken(value:String, tokenKind:String, file:String, line:UInt, column:UInt)
-			Return New TLexerToken(value, TokenKindFromName(tokenKind), New SCodeLocation(file, line, column))
+			Return New TLexerToken(value, TokenKindFromName(tokenKind))
 		End Function
 		
 		Local tokenList:TList = New TList'<TLexerToken>

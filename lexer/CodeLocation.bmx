@@ -19,18 +19,25 @@ Struct SCodeLocation
 		Return line > 0 And column > 0 And filePath
 	End Method
 	
-	Method ToString:String(includeFullFilePath:Int)
+	Method ToString:String(filePathDisplay:ECodeLocationFilePathDisplay)
 		Local str:String
-		If includeFullFilePath Then
-			str = " [" + filePath + "]"
-		Else
-			str = StripDir(filePath)
-		End If
-		str :+ " l:" + line + " c:" + column
+		Select filePathDisplay
+			Case ECodeLocationFilePathDisplay.Absolute str = filePath + " "
+			Case ECodeLocationFilePathDisplay.Relative str = StripDir(filePath) + " "
+			Case ECodeLocationFilePathDisplay.None str = ""
+			Default RuntimeError "Missing case"
+		End Select
+		str :+ "l:" + line + " c:" + column
 		Return str
 	End Method
 	
 	Method ToString:String()
-		Return ToString(False)
+		Return ToString(ECodeLocationFilePathDisplay.Relative)
 	End Method
 End Struct
+
+Enum ECodeLocationFilePathDisplay
+	Absolute
+	Relative
+	None
+End Enum

@@ -72,7 +72,7 @@ $(kind) $(typename(name, "Syntax"))$(iff(extends, " Extends "))$(list(map(extend
 	@end
 	@for i, f in pairs(fields) do
 	
-	Method $(capitalize(f.name)):$(typename(f.type, "Syntax"))()$(iff(f.nullable and f.minor, " {nullable minor}", iff(f.nullable, " {nullable}") .. iff(f.minor, " {minor}")))
+	Method $(capitalize(f.name)):$(typename(f.type, "Syntax"))()$(iff(f.override, " Override"))$(iff(f.nullable and f.minor, " {nullable minor}", iff(f.nullable, " {nullable}") .. iff(f.minor, " {minor}")))
 	@if name == "TCodeBlock" then
 		' special casing for code blocks: children are weakly referenced so that the
 		' corresponding subtree can be reclaimed by GC when no longer referenced anywhere else

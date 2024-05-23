@@ -97,7 +97,7 @@ Type TSyntaxTokenVisitor Extends TSyntaxVisitor
 			str :+ token.lexerToken.kind.ToString() + " " + Quote(token.lexerToken.value)
 			str :+ " >>> "
 			str :+ TriviaToString(token.trailingTrivia)
-			str :+ "   " + token.CodeRange().ToString()
+			'str :+ "   " + token.CodeRange().ToString()
 			Print str
 		End If
 	End Method

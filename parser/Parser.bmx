@@ -438,8 +438,7 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method GenerateMissingToken:TSyntaxToken(kind:TTokenKind, value:String)
-		Local missingTokenLocation:SCodeLocation = currentToken.lexerToken.codeLocation
-		Local missingToken:TSyntaxToken = TSyntaxToken.Create(New TLexerToken(value, kind, missingTokenLocation, True), [], [])
+		Local missingToken:TSyntaxToken = TSyntaxToken.Create(New TLexerToken(value, kind, True), [], [])
 		Return missingToken
 	End Method
 	
@@ -481,7 +480,7 @@ Type TParser Implements IParser Final
 		Local header:TCodeHeaderSyntaxData = ParseCodeHeader()
 		Local body:TCodeBodySyntaxData = ParseCodeBody()
 		Local eofToken:TSyntaxToken = TakeToken(TTokenKind.Eof)
-		Return TCompilationUnitSyntaxData.Create(header, body, eofToken)
+		Return TCompilationUnitSyntaxData.Create(header, body, eofToken, Self.filePath)
 	End Method
 	
 	Method ParseCodeHeader:TCodeHeaderSyntaxData() ' always succeeds
@@ -774,14 +773,23 @@ Type TParser Implements IParser Final
 			End Function
 		End Function
 		
-		Local parser:TParser = New TParser(CombinePaths(Self.filePath, filePathStr), Self.createLexer)
+		Local actualIncludeFilePath:String = CombinePaths(Self.filePath, filePathStr)
+		
+		Local includedCode:TIncludedCodeSyntaxData = ParseIncludedCode(actualIncludeFilePath)
+		
+		Return TIncludeDirectiveSyntaxData.Create(keyword, filePath, includedCode)
+	End Method
+	
+	Method ParseIncludedCode:TIncludedCodeSyntaxData(actualIncludeFilePath:String)
+		' TODO: detect cycles!
+		Local parser:TParser = New TParser(actualIncludeFilePath, Self.createLexer)
 		Local body:TCodeBodySyntaxData = parser.ParseCodeBody()
 		Local eofToken:TSyntaxToken = parser.TakeToken(TTokenKind.Eof)
 		For Local error:TParseError = EachIn parser.parseErrors
 			parseErrors.AddLast error
 		Next
 		
-		Return TIncludeDirectiveSyntaxData.Create(keyword, filePath, body, eofToken)
+		Return TIncludedCodeSyntaxData.Create(body, eofToken, actualIncludeFilePath)
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Declarations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

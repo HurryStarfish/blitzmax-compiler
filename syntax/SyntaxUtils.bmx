@@ -24,13 +24,13 @@ Function SyntaxToString:String(syntaxOrToken:ISyntaxOrSyntaxToken, options:ESynt
 End Function
 
 Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, options:ESyntaxToStringOptions = Null, additionalData:TMap = Null)
-	ToString sb, syntaxOrToken, options, "", False, additionalData
+	ToString sb, syntaxOrToken, options, additionalData, "", False, Null
 	
-	Function ToString(sb:TStringBuilder, o:Object, options:ESyntaxToStringOptions, indent:String, newline:Int, additionalData:TMap)
+	Function ToString(sb:TStringBuilder, o:Object, options:ESyntaxToStringOptions, additionalData:TMap, indent:String, newline:Int, parent:ISyntax)
 		If Not o Then Return
 		Local t:TTypeId = TTypeId.ForObject(o)
 		If TWeakReference(o) Then
-			ToString sb, TWeakReference(o).Get(), options, indent, newline, additionalData
+			ToString sb, TWeakReference(o).Get(), options, additionalData, indent, newline, parent
 		Else If ISyntaxOrSyntaxToken(o) Then
 			Local syntaxOrSyntaxToken:ISyntaxOrSyntaxToken = ISyntaxOrSyntaxToken(o)
 			Local syntax:ISyntax = ISyntax(o)
@@ -43,7 +43,11 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, o
 			
 			If options & ESyntaxToStringOptions.ShowCodeRanges Then
 				sb.Append " ("
-				sb.Append syntaxOrSyntaxToken.CodeRange().ToString()
+				If syntax Then
+					sb.Append syntax.CodeRange().ToString()
+				Else
+					sb.Append parent.ChildCodeRange(syntaxToken).ToString()
+				End If
 				sb.Append ")"
 			End If
 			
@@ -64,10 +68,10 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, o
 					sb.Append ":"
 					Local mValue:Object = m.Invoke(syntax)
 					If mValue And TTypeId.ForObject(mValue).ExtendsType(ArrayTypeId) Then ' TODO
-						ToString sb, mValue, options, indent + .Indent + .Indent, True, additionalData
+						ToString sb, mValue, options, additionalData, indent + .Indent + .Indent, True, syntax
 					Else If mValue Then
 						'Assert ISyntaxOrSyntaxToken(mValue) Else "Object is not syntax or syntax token"
-						ToString sb, mValue, options, indent + .Indent + .Indent, True, additionalData
+						ToString sb, mValue, options, additionalData, indent + .Indent + .Indent, True, syntax
 					End If
 				Next
 			End If
@@ -76,7 +80,7 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, o
 			For Local i:Int = 0 Until t.ArrayLength(o)
 				Local element:Object = t.GetArrayElement(o, i)
 				'Assert ISyntaxOrSyntaxToken(element) Else "Object is not syntax or syntax token"
-				ToString sb, element, options, indent, True, additionalData
+				ToString sb, element, options, additionalData, indent, True, parent
 			Next
 		Else
 			If newline Then sb.Append "~n"

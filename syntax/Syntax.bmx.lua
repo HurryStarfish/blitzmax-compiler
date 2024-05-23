@@ -24,12 +24,13 @@ nodetypes = {
 	{
 		category = "Top-Level",
 		{
-			name = "TCompilationUnit", extends = {"T"},
+			name = "TCompilationUnit", extends = {"TCodeFileTopLevel"},
 			kind = "Type",
 			fields = {
 				{ name = "header", type = "TCodeHeader" },
 				{ name = "body", type = "TCodeBody" },
-				{ name = "eofToken", type = Token, minor = true }
+				{ name = "eofToken", type = Token, minor = true },
+				{ name = "codeFilePath", type = String, override = true }
 			}
 		},
 		{
@@ -118,8 +119,16 @@ nodetypes = {
 			fields = {
 				{ name = "keyword", type = Token, minor = true },
 				{ name = "filePath", type = "TStringLiteralExpression" },
+				{ name = "includedCode", type = "TIncludedCode" }
+			}
+		},
+		{
+			name = "TIncludedCode", extends = {"TCodeFileTopLevel"},
+			kind = "Type",
+			fields = {
 				{ name = "body", type = "TCodeBody" },
-				{ name = "eofToken", type = Token, minor = true }
+				{ name = "eofToken", type = Token, minor = true },
+				{ name = "codeFilePath", type = String, override = true }
 			}
 		}
 	},

@@ -1,15 +1,9 @@
 SuperStrict
 Import "../lexer/CodeRange.bmx"
+Import "../lexer/CodeInfo.bmx"
 
 
 
-' TODO:
-' - make compilation unit and include directive implement a special interface that provides a file name
-' - tokens will no longer store a code location
-' - nodes will store the sum of the lengths of the values of all the tokens under them, excluding
-'   those under the nodes that are the children of any node that implements the interface
-'   (so the content of include files is not counted towards the length of the including file)
-'   this will make nodes reusable after code changes
 Interface ISyntaxOrSyntaxTree End Interface
 
 
@@ -45,13 +39,18 @@ End Type
 
 
 Interface ISyntaxDataOrSyntaxToken
-	Method CodeRange:SCodeRange()
+	' see ISyntaxOrSyntaxToken
+	Method CodeInfo:SCodeInfo()
 End Interface
 
 
 
 Interface ISyntaxOrSyntaxToken
-	Method CodeRange:SCodeRange()
+	' returns information about the code string represented by this node and all of its children
+	' within the same file
+	' if the subtree below this node contains an Include directive, the code of the directive itself
+	' is covered by the returned info, but the code inside the included file is not
+	Method CodeInfo:SCodeInfo()
 End Interface
 
 
@@ -63,7 +62,7 @@ Interface ISyntaxData Extends ISyntaxDataOrSyntaxToken
 	' fields that can contain null objects (this does not include arrays, strings, ...) should be
 	' marked as {nullable}, fields that are not semantically relevant should be marked as {minor}
 	
-	Method CreateSyntax:ISyntax(parent:ISyntaxOrSyntaxTree) ' this is here instead of in TSyntax constructor so that overridden methods can be used to create a TSyntax of the correct type from a TSyntaxData without knowing the type statically
+	Method CreateSyntax:ISyntax(parent:ISyntaxOrSyntaxTree) ' this is here instead of in TSyntax descendants so that it can be overridden to create *Syntax instances of the correct type from *SyntaxData instances without knowing the type of the instances statically
 	
 	Method GetChildren:ISyntaxDataOrSyntaxToken[]()
 End Interface
@@ -75,6 +74,8 @@ Interface ISyntax Extends ISyntaxOrSyntaxToken, ISyntaxOrSyntaxTree
 	Method GetSyntaxTree:TSyntaxTree()
 	Method Parent:ISyntax()
 	Method GetChildren:ISyntaxOrSyntaxToken[]()
+	Method CodeRange:SCodeRange()
+	Method ChildCodeRange:SCodeRange(child:ISyntaxOrSyntaxToken)
 End Interface
 
 
@@ -84,33 +85,17 @@ Type TSyntaxData Implements ISyntaxData Abstract
 	Method New() End Method
 	
 	Public
-	Method CodeRange:SCodeRange() Override Final
+	Method CodeInfo:SCodeInfo() Override Final
 		Local children:ISyntaxDataOrSyntaxToken[] = GetChildren()
-		If children.length = 0 Then
-			Return Null
-		Else
-			If children.length = 1 Then
-				Return children[0].CodeRange()
+		Local codeInfo:SCodeInfo = New SCodeInfo()
+		For Local child:ISyntaxDataOrSyntaxToken = EachIn children
+			If TCodeFileTopLevelSyntaxData(child) Then
+				' code is in a different file, so it is not considered
 			Else
-				' return combined range of children
-				Local firstValidChildRange:SCodeRange
-				Local lastValidChildRange:SCodeRange
-				Local c:Int
-				For c = 0 To children.length - 1
-					Local r:SCodeRange = children[c].CodeRange()
-					If r.IsValid() Then firstValidChildRange = r; Exit
-				Next
-				If c = children.length Then
-					Return Null ' no child with a valid range
-				Else
-					For c = children.length - 1 To c Step -1
-						Local r:SCodeRange = children[c].CodeRange()
-						If r.IsValid() Then lastValidChildRange = r; Exit
-					Next
-					Return New SCodeRange(firstValidChildRange.startLocation, lastValidChildRange.endLocation)
-				End If
+				codeInfo = codeInfo + child.CodeInfo()
 			End If
-		End If
+		Next
+		Return codeInfo
 	End Method
 	
 	' TODO: ToString
@@ -134,12 +119,89 @@ Type TSyntax Implements ISyntax Abstract
 		Return TSyntaxTree(syntax._parent)
 	End Method
 	
-	Method Parent:ISyntax() Override Final ' nullable
-		Return ISyntax(_parent)
+	Method Parent:TSyntax() Override Final ' nullable
+		Return TSyntax(_parent)
+	End Method
+		
+	Method CodeInfo:SCodeInfo() Override Final
+		Return Data().CodeInfo()
 	End Method
 	
 	Method CodeRange:SCodeRange() Override Final
-		Return Data().CodeRange()
+		'TODO: provide a way to get the range without the trivia
+		
+		Local precedingCodeInfo:SCodeInfo = GetPrecedingCodeInfoInFile()
+		Local codeInfo:SCodeInfo = CodeInfo()
+		Local codeFilePath:String = GetCodeFilePath()
+		
+		Local startCodeInfo:SCodeInfo = precedingCodeInfo
+		Local endCodeInfo:SCodeInfo = precedingCodeInfo + codeInfo
+		Local startLocation:SCodeLocation = New SCodeLocation(codeFilePath, startCodeInfo.linebreakCount + 1, startCodeInfo.charsAfterLastLinebreak + 1)
+		Local endLocation:SCodeLocation = New SCodeLocation(codeFilePath, endCodeInfo.linebreakCount + 1, endCodeInfo.charsAfterLastLinebreak + 1)
+		Return New SCodeRange(startLocation, endLocation)
 	End Method
+	
+	Method ChildCodeRange:SCodeRange(child:ISyntaxOrSyntaxToken) Override Final
+		' basically the same as CodeRange(), but can be used for tokens too
+				
+		Local precedingCodeInfo:SCodeInfo = GetChildPrecedingCodeInfoInFile(child)
+		Local codeInfo:SCodeInfo = child.CodeInfo()
+		Local codeFilePath:String = GetCodeFilePath() ' TODO: this should be the child's
+		
+		Local startCodeInfo:SCodeInfo = precedingCodeInfo
+		Local endCodeInfo:SCodeInfo = precedingCodeInfo + codeInfo
+		Local startLocation:SCodeLocation = New SCodeLocation(codeFilePath, startCodeInfo.linebreakCount + 1, startCodeInfo.charsAfterLastLinebreak + 1)
+		Local endLocation:SCodeLocation = New SCodeLocation(codeFilePath, endCodeInfo.linebreakCount + 1, endCodeInfo.charsAfterLastLinebreak + 1)
+		Return New SCodeRange(startLocation, endLocation)
+	End Method
+	
+	Private
+	Method GetPrecedingCodeInfoInFile:SCodeInfo() Final
+		If TCodeFileTopLevelSyntax(Self) Then
+			Return New SCodeInfo()
+		Else
+			Assert Parent() Else "Syntax is a not a file top-level syntax but has no parent"
+			Return Parent().GetChildPrecedingCodeInfoInFile(Self)
+		End If
+	End Method
+	
+	Method GetChildPrecedingCodeInfoInFile:SCodeInfo(child:ISyntaxOrSyntaxToken) Final
+		Local codeInfo:SCodeInfo
+		If TCodeFileTopLevelSyntax(Self) Then
+			codeInfo = New SCodeInfo()
+		Else
+			Assert Parent() Else "Syntax is a not a file top-level syntax but has no parent"
+			codeInfo = Parent().GetChildPrecedingCodeInfoInFile(Self)
+		End If
+		codeInfo = codeInfo + GetChildPrecedingCodeInfoInNode(child)
+		Return codeInfo
+	End Method
+	
+	Method GetChildPrecedingCodeInfoInNode:SCodeInfo(child:ISyntaxOrSyntaxToken) Final
+		Local codeInfo:SCodeInfo = New SCodeInfo()
+		For Local c:ISyntaxOrSyntaxToken = EachIn GetChildren()
+			If c = child Then Return codeInfo Else codeInfo = codeInfo + c.CodeInfo()
+		Next
+		RuntimeError "Child not found"
+	End Method
+	
+	Method GetCodeFilePath:String() Final
+		Local selfAsTopLevelSyntax:TCodeFileTopLevelSyntax = TCodeFileTopLevelSyntax(Self)
+		If selfAsTopLevelSyntax Then
+			Return selfAsTopLevelSyntax.CodeFilePath()
+		Else
+			Assert Parent() Else "Syntax is a not a file top-level syntax but has no parent"
+			Return Parent().GetCodeFilePath()
+		End If
+	End Method
+End Type
+
+
+
+Type TCodeFileTopLevelSyntaxData Extends TSyntaxData Abstract
+End Type
+
+Type TCodeFileTopLevelSyntax Extends TSyntax Abstract
+	Method CodeFilePath:String() Abstract
 End Type
 

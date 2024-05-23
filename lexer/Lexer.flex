@@ -84,7 +84,7 @@ void resetFilePosition(FilePosition* pos) {
 %x REMCOMMENT_FIRST_LINE REMCOMMENT
 
 NEWLINE \r\n|\r|\n
-/* TLexerToken.CodeRange must be kept in sync with the token kinds newlines are used in */
+/* TLexerToken.CodeInfo must be kept in sync with the token kinds newlines are used in */
 
 %%
 

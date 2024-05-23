@@ -16,7 +16,11 @@ Struct SCodeRange
 		Return startLocation.IsValid()
 	End Method
 	
+	Method ToString:String(filePathDisplay:ECodeLocationFilePathDisplay)
+		Return startLocation.ToString(filePathDisplay) + " - " + endLocation.ToString(ECodeLocationFilePathDisplay.None)
+	End Method
+	
 	Method ToString:String()
-		Return startLocation.ToString() + " - " + endLocation.ToString()
+		Return startLocation.ToString() + " - " + endLocation.ToString(ECodeLocationFilePathDisplay.None)
 	End Method
 End Struct

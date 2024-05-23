@@ -31,7 +31,8 @@ Type TTokenKind Final
 	End Method
 	
 	Method ToCode:String() ' to generate missing tokens
-		If Not canonicalValue Then RuntimeError "Token of kind " + name + " has no canonical value"
+		If Not canonicalValue And Self <> Eof Then RuntimeError "Token of kind " + name + " has no canonical value"
+		' an exception is made for Eof, its canonical value is Null
 		Return canonicalValue
 	End Method
 	

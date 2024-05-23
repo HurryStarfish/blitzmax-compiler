@@ -153,6 +153,7 @@ Type TParser Implements IParser Final
 	Field ReadOnly filePath:String
 	Field ReadOnly createLexer:ILexer(filePath:String)
 	Field ReadOnly lexer:ILexer
+	Field ReadOnly parentFileParser:TParser
 	
 	Field nextLexerToken:TLexerToken
 	Field nextLeadingTrivia:TLexerToken[]
@@ -162,19 +163,24 @@ Type TParser Implements IParser Final
 	
 	Method New() End Method
 	
-	Public
-	Method New(filePath:String, createLexer:ILexer(filePath:String))
-		Self.filePath = filePath
+	Method New(filePath:String, createLexer:ILexer(filePath:String), parentFileParser:TParser)
+		Self.filePath = RealPath(filePath)
 		Self.createLexer = createLexer
+		Self.parentFileParser = parentFileParser
 		
 		Try
-			Self.lexer = createLexer(filePath)
+			Self.lexer = createLexer(Self.filePath)
 			AdvanceToNextSyntaxToken()
 		Catch ex:TLexerFileReadException
 			Self.lexer = New TNullLexer
 			AdvanceToNextSyntaxToken()
 			ReportError ex.message
 		End Try
+	End Method
+	
+	Public
+	Method New(filePath:String, createLexer:ILexer(filePath:String))
+		New(filePath, createLexer, Null)
 	End Method
 	
 	Method Errors:TList() Override '<TParseError>
@@ -773,7 +779,7 @@ Type TParser Implements IParser Final
 			End Function
 		End Function
 		
-		Local actualIncludeFilePath:String = CombinePaths(Self.filePath, filePathStr)
+		Local actualIncludeFilePath:String = RealPath(CombinePaths(Self.filePath, filePathStr))
 		
 		Local includedCode:TIncludedCodeSyntaxData = ParseIncludedCode(actualIncludeFilePath)
 		
@@ -781,15 +787,29 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method ParseIncludedCode:TIncludedCodeSyntaxData(actualIncludeFilePath:String)
-		' TODO: detect cycles!
-		Local parser:TParser = New TParser(actualIncludeFilePath, Self.createLexer)
-		Local body:TCodeBodySyntaxData = parser.ParseCodeBody()
-		Local eofToken:TSyntaxToken = parser.TakeToken(TTokenKind.Eof)
-		For Local error:TParseError = EachIn parser.parseErrors
-			parseErrors.AddLast error
-		Next
-		
-		Return TIncludedCodeSyntaxData.Create(body, eofToken, actualIncludeFilePath)
+		Function HasParentWithFilePath:Int(parser:TParser, filePath:String)
+			Return Has(parser.parentFileParser, filePath)
+			Function Has:Int(parser:TParser, filePath:String)
+				If Not parser Then Return False Else If parser.filePath = filePath Then Return True Else Return Has(parser.parentFileParser, filePath)
+			End Function
+		End Function
+		If HasParentWithFilePath(Self, actualIncludeFilePath) Then
+			ReportError "Cyclic include of file ~q" + StripDir(actualIncludeFilePath) + "~q"
+			
+			Local body:TCodeBodySyntaxData = TCodeBodySyntaxData.Create(TCodeBlockSyntaxData.Create([]))
+			Local eofToken:TSyntaxToken = GenerateMissingToken(TTokenKind.Eof)
+			
+			Return TIncludedCodeSyntaxData.Create(body, eofToken, actualIncludeFilePath)
+		Else
+			Local parser:TParser = New TParser(actualIncludeFilePath, Self.createLexer, Self)
+			Local body:TCodeBodySyntaxData = parser.ParseCodeBody()
+			Local eofToken:TSyntaxToken = parser.TakeToken(TTokenKind.Eof)
+			For Local error:TParseError = EachIn parser.parseErrors
+				parseErrors.AddLast error
+			Next
+			
+			Return TIncludedCodeSyntaxData.Create(body, eofToken, actualIncludeFilePath)
+		End If
 	End Method
 	
 	' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Declarations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

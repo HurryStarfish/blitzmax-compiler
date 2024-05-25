@@ -4,13 +4,24 @@
 'T.F 1, 2, 3
 'T.F(1, 2, 3).M
 
+Type A End Type
+Type B
+	Function F()
+		If True Then
+			Function G()
+				Type E End Type
+			End Function
+		End If
+	End Function
+End Type
+
 Rem
 Type A End Type
 Type B
-	'Function F()
+	Function F()
 		Type C Extends D End Type
 		Type D Extends A End Type
-	'End Function
+	End Function
 End Type
 End Rem
 

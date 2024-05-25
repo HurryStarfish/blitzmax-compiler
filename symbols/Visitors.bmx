@@ -60,19 +60,6 @@ Type TCreateScopesVisitor Extends TSyntaxVisitor Final
 End Type
 
 Type TCollectTypeDeclarationSyntaxesVisitor Extends TSyntaxVisitor Final
-	' see CreateTypeDeclarations
-	' restriction: imports can not have cycles, which means two types from different compilation units
-	'              cannot both depend on a type from the other compilation unit
-	' restriction: type dependencies can not have cycles, so two types cannot both depend on each other
-	' restriction: types cannot depend on their own nested types (outer types count as dependencies)
-	' this means:
-	' - first, info about all type declarations (and their dependencies) within the compilation unit
-	'   must be gathered
-	' - type declarations (assuming they conform to the above restrictions) can then be created in
-	'   some specific order
-	'   - resolving dependencies requires being able to resolve fully or partially qualified names
-	' - if any types do not conform to the above restriction, an error must be reported and the
-	'   problematic dependencies be dropped in order to recover
 	Field ReadOnly typeDeclarationSyntaxes:TList = New TList'<TTypeDeclarationSyntax>
 	
 	Method VisitTopDown(syntax:TTypeDeclarationSyntax)

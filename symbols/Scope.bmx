@@ -6,8 +6,16 @@ Import "../util/Logging.bmx"
 
 
 Type TScopeTree Final
-	Field scopes:TMap = New TMap'<ISyntax, TScope>
+	Field ReadOnly scopes:TMap'<ISyntax, TScope>
 	' TODO: where are scopes of constructed generic types or imported types linked?
+	
+	Private
+	Method New() End Method
+	
+	Public
+	Method New(scopes:TMap)
+		Self.scopes = scopes
+	End Method
 	
 	' TODO: lookup methods go here
 	

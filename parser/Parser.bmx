@@ -444,7 +444,7 @@ Type TParser Implements IParser Final
 	End Method
 	
 	Method GenerateMissingToken:TSyntaxToken(kind:TTokenKind, value:String)
-		Local missingToken:TSyntaxToken = TSyntaxToken.Create(New TLexerToken(value, kind, True), [], [])
+		Local missingToken:TSyntaxToken = TSyntaxToken.Create(TLexerToken.Create(value, kind, True), [], [])
 		Return missingToken
 	End Method
 	

@@ -3,21 +3,19 @@ Import BRL.StandardIO
 
 
 
-Global ActiveLogCategories:ELogCategory[4] ' TODO: enum array literals are broken
-Local a:ELogCategory[4]
-ActiveLogCategories[0] = ELogCategory.LexerTokens
-ActiveLogCategories[1] = ELogCategory.ParserTokens
-ActiveLogCategories[2] = ELogCategory.TypeCreation
-ActiveLogCategories[3] = ELogCategory.ScopeLookup
-
-
-
 Enum ELogCategory
 	LexerTokens
 	ParserTokens
 	TypeCreation
 	ScopeLookup
 End Enum
+
+Global ActiveLogCategories:ELogCategory[] = [ ..
+	ELogCategory.LexerTokens, ..
+	ELogCategory.ParserTokens, ..
+	ELogCategory.TypeCreation, ..
+	ELogCategory.ScopeLookup ..
+]
 
 
 

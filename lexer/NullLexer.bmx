@@ -5,7 +5,7 @@ Import "ILexer.bmx"
 
 Type TNullLexer Implements ILexer Final
 	Private
-	Global eofToken:TLexerToken = New TLexerToken(Null, TTokenKind.Eof, Null)
+	Global eofToken:TLexerToken = TLexerToken.Create(Null, TTokenKind.Eof, Null)
 	
 	Public
 	Method NextToken:TLexerToken() Override

@@ -1,6 +1,5 @@
 SuperStrict
 Framework BRL.StandardIO ' this is a comment
-Include "test_include.bmx"
 
 
 'Local x:T = New T

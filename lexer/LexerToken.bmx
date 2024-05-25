@@ -13,12 +13,16 @@ Type TLexerToken Final
 	Private
 	Method New() End Method
 	
-	Public
 	Method New(value:String, kind:TTokenKind, missing:Int = False)
 		Self.value = value
 		Self.kind = kind
 		Self.missing = missing
 	End Method
+	
+	Public
+	Function Create:TLexerToken(value:String, kind:TTokenKind, missing:Int = False)
+		Return New TLexerToken(value, kind, missing)
+	End Function
 	
 	Method CodeInfo:SCodeInfo()
 		If missing Then
@@ -44,7 +48,6 @@ Type TLexerToken Final
 				Return False
 			End Function
 		End If
-		
 	End Method
 	
 	Method ToString:String() Override

@@ -5,6 +5,7 @@ Import BRL.StringBuilder
 Import "SyntaxBase.bmx"
 Import "SyntaxToken.bmx"
 Import "../util/WeakReference.bmx"
+Import "SyntaxVisitor.bmx"
 
 
 
@@ -76,7 +77,7 @@ Function SyntaxToString(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken, o
 				Next
 			End If
 		Else If t.ExtendsType(ArrayTypeId) Then
-			If t.Name() = "Null[]" Then Return
+			If t = ArrayTypeId Then Return ' null array
 			For Local i:Int = 0 Until t.ArrayLength(o)
 				Local element:Object = t.GetArrayElement(o, i)
 				'Assert ISyntaxOrSyntaxToken(element) Else "Object is not syntax or syntax token"
@@ -117,5 +118,85 @@ Function SyntaxToCode(sb:TStringBuilder, syntaxOrToken:ISyntaxOrSyntaxToken)
 		Next
 	End If
 End Function
+
+Rem
+Type TSyntaxToCodeVisitor Extends TSyntaxVisitor Final
+	Field stringBuilder:TStringBuilder
+	
+	Private
+	Field rootCodeFileTopLevelSyntax:TCodeFileTopLevelSyntax
+	
+	Method VisitTopDown:TCodeFileTopLevelSyntax(codeFileTopLevelSyntax:TCodeFileTopLevelSyntax, parentCodeFileTopLevelSyntax:TCodeFileTopLevelSyntax)
+		If Not rootCodeFileTopLevelSyntax Then
+			Assert Not stringBuilder Else "Multiple top-level nodes have been visited"
+			stringBuilder = New TStringBuilder(codeFileTopLevelSyntax.CodeInfo().length)
+			rootCodeFileTopLevelSyntax = codeFileTopLevelSyntax
+		End If
+		Assert "Builder was not created when top-level node was visited"
+		Return codeFileTopLevelSyntax
+	End Method
+	
+	Method VisitTopDown:TCodeFileTopLevelSyntax(token:TSyntaxToken, parentCodeFileTopLevelSyntax:TCodeFileTopLevelSyntax)
+		Assert rootCodeFileTopLevelSyntax Else "Top-level node was not yet visited"
+		If parentCodeFileTopLevelSyntax = rootCodeFileTopLevelSyntax Then ' skip code from included files
+			If Not token.lexerToken.missing Then
+				Function TriviaToCode(sb:TStringBuilder, lexerToken:TLexerToken[])
+					For Local t:TLexerToken = EachIn lexerToken
+						sb.Append t.value
+					Next
+				End Function
+				TriviaToCode stringBuilder, token.leadingTrivia
+				stringBuilder.Append token.lexerToken.value
+				TriviaToCode stringBuilder, token.trailingTrivia
+			End If
+			Return parentCodeFileTopLevelSyntax
+		End If
+	End Method
+End Type
+End Rem
+
+Type TSyntaxToCodeVisitor Extends TSyntaxVisitor Final
+	Field fileResults:TSyntaxToCodeVisitorFileResult[]
+	
+	Method VisitTopDown:TSyntaxToCodeVisitorFileResult(codeFileTopLevelSyntax:TCodeFileTopLevelSyntax, parentFileResult:TSyntaxToCodeVisitorFileResult)
+		Local r:TSyntaxToCodeVisitorFileResult = New TSyntaxToCodeVisitorFileResult(codeFileTopLevelSyntax.CodeFilePath(), New TStringBuilder(codeFileTopLevelSyntax.CodeInfo().length))
+		fileResults :+ [r]
+		Return r
+	End Method
+	
+	Method VisitTopDown:TSyntaxToCodeVisitorFileResult(syntaxToken:TSyntaxToken, fileResult:TSyntaxToCodeVisitorFileResult)
+		TokenToCode syntaxToken, fileResult.stringBuilder
+		Return fileResult
+	End Method
+	
+	Function TokenToCode(syntaxToken:TSyntaxToken, sb:TStringBuilder)
+		For Local t:TLexerToken = EachIn syntaxToken.leadingTrivia
+			If Not t.missing Then sb.Append t.value
+		Next
+		If Not syntaxToken.lexerToken.missing Then sb.Append syntaxToken.lexerToken.value
+		For Local t:TLexerToken = EachIn syntaxToken.trailingTrivia
+			If Not t.missing Then sb.Append t.value
+		Next
+	End Function
+End Type
+
+Type TSyntaxToCodeVisitorFileResult Final
+	Field ReadOnly codeFilePath:String
+	Field ReadOnly stringBuilder:TStringBuilder
+	
+	Method New(codeFilePath:String, stringBuilder:TStringBuilder)
+		Self.codeFilePath = codeFilePath
+		Self.stringBuilder = stringBuilder
+	End Method
+End Type
+
+
+
+
+
+
+
+
+
 
 

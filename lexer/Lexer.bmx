@@ -34,7 +34,7 @@ Type TLexer Implements ILexer Final
 		Self.filePath = filePath
 		Self.tokens = ScanFile()
 		Self.currentTokenLink = tokens.FirstLink()
-		Self.eofToken = New TLexerToken(Null, TTokenKind.Eof)
+		Self.eofToken = TLexerToken.Create(Null, TTokenKind.Eof)
 	End Method
 	
 	Method NextToken:TLexerToken() Override
@@ -80,7 +80,7 @@ Type TLexer Implements ILexer Final
 		End Function
 		
 		Function CreateToken:TLexerToken(value:String, tokenKind:String, file:String, line:UInt, column:UInt)
-			Return New TLexerToken(value, TokenKindFromName(tokenKind))
+			Return TLexerToken.Create(value, TokenKindFromName(tokenKind))
 		End Function
 		
 		Local tokenList:TList = New TList'<TLexerToken>

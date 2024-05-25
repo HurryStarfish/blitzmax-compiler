@@ -580,6 +580,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 							SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
 							superTypeData.typeAssigned = True
 							unfinishedSuperCount :- 1
+							Continue SuperTypeDataLoop
 						Else
 							Local desiredArity:Int
 							If isLastPart And superTypeData.typeSyntax.TypeArguments() Then
@@ -615,6 +616,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
 								superTypeData.typeAssigned = True
 								unfinishedSuperCount :- 1
+								Continue SuperTypeDataLoop
 							Else If bestMatches.length > 1 Then
 								' found multiple declarations that match
 								Local bestMatchNamesStr:String = ""
@@ -627,6 +629,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
 								superTypeData.typeAssigned = True
 								unfinishedSuperCount :- 1
+								Continue SuperTypeDataLoop
 							Else
 								' found multiple declarations, but none of them match
 								Local foundTypeDeclarationNamesStr:String = ""
@@ -639,6 +642,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 								SetSuperType data.builder, superTypeData, ErrorTypeDeclarationSymbol
 								superTypeData.typeAssigned = True
 								unfinishedSuperCount :- 1
+								Continue SuperTypeDataLoop
 							End If
 						End If
 					Next

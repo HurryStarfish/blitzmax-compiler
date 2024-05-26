@@ -27,15 +27,6 @@ Enum EAllowedDeclaratorCount
 	Any
 End Enum
 
-Function GetScope:TScope(syntax:ISyntax, scopes:TMap)'<ISyntax, TScope>
-	' gets the scope for this node, or, if none present, the enclosing scope
-	Repeat
-		Local scope:TScope = TScope(scopes[syntax])
-		If scope Then Return scope
-		syntax = syntax.Parent()
-		If Not syntax Then Return Null
-	Forever
-End Function
 
 Public
 Type TCreateScopesVisitor Extends TSyntaxVisitor Final
@@ -49,13 +40,24 @@ Type TCreateScopesVisitor Extends TSyntaxVisitor Final
 		                           TSelectBranchSyntax(parentSyntax) Or ..
 		                           TTryBranchSyntax(parentSyntax) Or ..
 		                           TIncludedCodeSyntax(parentSyntax.Parent()) And TIncludedCodeSyntax(parentSyntax.Parent()).Body().Block() = syntax
-		scope = New TScope(GetScope(parentSyntax, scopes), inheritsLocals)
+		scope = New TScope(GetScope(parentSyntax), inheritsLocals)
 		scopes[syntax] = scope
 		' TODO
 	End Method
 	
 	Method VisitTopDown(syntax:TEnumDeclarationSyntax)
-		scopes[syntax] = New TScope(GetScope(syntax.Parent(), scopes), False)
+		scopes[syntax] = New TScope(GetScope(syntax.Parent()), False)
+	End Method
+	
+	Private
+	Method GetScope:TScope(syntax:ISyntax)
+		' gets the scope of this node, or, if there is none, the nearest enclosing scope
+		Repeat
+			Local scope:TScope = TScope(scopes[syntax])
+			If scope Then Return scope
+			syntax = syntax.Parent()
+			If Not syntax Then Return Null
+		Forever
 	End Method
 End Type
 
@@ -67,7 +69,8 @@ Type TCollectTypeDeclarationSyntaxesVisitor Extends TSyntaxVisitor Final
 	End Method
 End Type
 
-Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
+Rem
+Type ____TCreateScopesAndInsertDeclarationsVisitor_ Extends TSyntaxVisitor Final
 	Field ReadOnly scopes:TMap = New TMap'<ISyntax, TScope>
 	
 	Method VisitTopDown(syntax:TVariableDeclarationSyntax)
@@ -92,7 +95,7 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 	
 	Method VisitTopDown(syntax:TCallableDeclarationSyntax)
 		RuntimeError "TODO"
-		Rem
+		'Rem
 		Local scope:TScope = GetParentCodeBlockScope(syntax)
 		Local nameStr:String
 		If syntax.Name().IdentifierName() Then
@@ -133,7 +136,7 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		End If
 		
 		' TODO: handle type parameters
-		End Rem
+		'End Rem
 	End Method
 	
 	Method VisitTopDown(syntax:TForStatementSyntax)
@@ -207,7 +210,7 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 		
 		Function ProcessDeclarator(syntax:TVariableDeclaratorListElementSyntax, scope:TScope, declarationKeyword:TSyntaxToken, shouldHaveDeclarationKeyword:Int)
 			RuntimeError "TODO"
-			Rem
+			'Rem
 			Local nameStr:String = syntax.Declarator().Name().Identifier().lexerToken.value
 			
 			Local symbol:IVariableDeclarationSymbol
@@ -225,10 +228,11 @@ Type TCreateScopesAndInsertDeclarationsVisitor Extends TSyntaxVisitor Final
 			End If
 			'If scope.GetSymbolForName(nameStr) Then Throw "TODO" ' TODO: handle duplicate declarations
 			scope.AddDeclaration symbol
-			End Rem
+			'End Rem
 		End Function
 	End Function
 End Type
+End Rem
 
 
 
@@ -663,7 +667,7 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 			End If
 		Next
 		
-
+		
 		If LoggingActive(ELogCategory.TypeCreation) Then Log ELogCategory.TypeCreation, unfinishedTypeCount + " unfinished types, " + unfinishedSuperCount + " unfinished supers remaining"
 		
 		If unfinishedTypeCount > 0 And unfinishedSuperCount < unfinishedSuperCountAtStartOfPass Then
@@ -848,13 +852,5 @@ Function CreateTypeDeclarations(typeDeclarationSyntaxes:TTypeDeclarationSyntax[]
 		Assert scope Else "Missing scope"
 		Return scope
 	End Function
-	
-	Function LookUpName:IDeclarationSymbol[](nameSyntax:TQualifiedNameSyntax, scope:TScope) ' will look up the name starting from this scope
-		Assert nameSyntax.Parts() Else "Name is empty"
-		If Not nameSyntax.Parts()[0].Identifier() Then RuntimeError "TODO: global scope lookup"
-		For Local part:TQualifiedNamePartSyntax = EachIn nameSyntax.Parts()
-			Local key:TSymbolKey = New TSymbolKey(part.Identifier().lexerToken.value)
-			
-		Next
-	End Function
 End Function
+

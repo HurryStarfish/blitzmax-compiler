@@ -1,5 +1,6 @@
 SuperStrict
 Import "Symbols.bmx"
+Import "SemanticError.bmx"
 Import BRL.Map
 Import "../util/Logging.bmx"
 
@@ -31,14 +32,11 @@ Type TScopeTree Final
 	'   get types of a given arity
 	' -> build a symbol tree containing parent/child relationships
 	Method LookUpTypeDeclaration:IDeclarationSymbol[](startingScope:TScope, identifier:String, includeParentScopes:Int)', referenceLocation:???)
-		Type TNoCancelCondition Implements ILookupCancelCondition Final
-			Method LookupCancelCondition:Int(scope:TScope) Override Return False End Method
-		End Type
-		Global noCancelCondition:ILookupCancelCondition = New TNoCancelCondition
-		Return LookUpTypeDeclaration(startingScope, identifier, includeParentScopes, noCancelCondition)
+		Local _:Int
+		Return LookUpTypeDeclaration(startingScope, identifier, includeParentScopes, Null, _)
 	End Method
 	
-	Method LookUpTypeDeclaration:IDeclarationSymbol[](startingScope:TScope, identifier:String, includeParentScopes:Int, cancelConditionObject:ILookupCancelCondition)', referenceLocation:???)
+	Method LookUpTypeDeclaration:IDeclarationSymbol[](startingScope:TScope, identifier:String, includeParentScopes:Int, cancelCondition:ILookupCancelCondition, cancelled:Int Var)', referenceLocation:???) ' cancelCondition is nullable
 		' TODO: account for visibility
 		' TODO: report error for locals if code location of declaration is after reference
 		' ^ both of these will need referenceLocation
@@ -46,7 +44,8 @@ Type TScopeTree Final
 		' TODO: a "find only types" lookup is not feasible in BlitzMax because there are situations
 		'       in which it isn't possible to distinguish between type and expression contexts,
 		'       e.g. type casts; in these situations, a function would be able to shadow a type of
-		'        the same name, so for consistency, this should be the case everywhere
+		'       the same name, so for consistency, this should be the case everywhere;
+		'       however, this would be a breaking change
 		
 		? Debug
 			Local scopesContainsStartingScope:Int = False
@@ -66,7 +65,10 @@ Type TScopeTree Final
 			Return False
 		End Function
 		
-		If cancelConditionObject.LookupCancelCondition(startingScope) Then Return Null
+		If cancelCondition And cancelCondition.LookupCancelCondition(startingScope) Then
+			cancelled = True
+			Return Null
+		End If
 
 		Local declarations:IDeclarationSymbol[]
 		
@@ -77,8 +79,7 @@ Type TScopeTree Final
 		' if this is a lookup in the body scope of a type, look up in super types
 		Local typeDeclaration:ITypeDeclarationSymbol = FindTypeDeclarationWithScope(Self, startingScope)
 		If typeDeclaration Then
-			Local cancelled:Int = False
-			declarations :+ LookUpInSuperTypes(Self, typeDeclaration, key, declarations, visitedScopes, cancelConditionObject, cancelled)
+			declarations :+ LookUpInSuperTypes(Self, typeDeclaration, key, declarations, visitedScopes, cancelCondition, cancelled)
 			If cancelled Then Return Null
 		End If
 		' when looking for a type, scopes of variables are excluded from the lookup
@@ -97,17 +98,17 @@ Type TScopeTree Final
 				If LoggingActive(ELogCategory.ScopeLookup) Then Log ELogCategory.ScopeLookup, "looking in parent scope " + parentScope.ToString()
 				Local parentScopeType:ITypeDeclarationSymbol = FindTypeDeclarationWithScope(Self, parentScope)
 				If parentScopeType Then
-					Local cancelled:Int = False
-					declarations :+ LookUpInSuperTypes(Self, parentScopeType, key, declarations, visitedScopes, cancelConditionObject, cancelled)
+					declarations :+ LookUpInSuperTypes(Self, parentScopeType, key, declarations, visitedScopes, cancelCondition, cancelled)
 					If cancelled Then Return Null
 				End If
 				parentScope = parentScope.parent
 			Wend
 		End If
 		
+		cancelled = False
 		Return declarations
 		
-		Function LookUpInSuperTypes:IDeclarationSymbol[](Self_:TScopeTree, typeDeclaration:ITypeDeclarationSymbol, key:TSymbolKey, baseDeclarations:IDeclarationSymbol[], visitedScopes:TScope[] Var, cancelConditionObject:ILookupCancelCondition, cancelled:Int Var)
+		Function LookUpInSuperTypes:IDeclarationSymbol[](Self_:TScopeTree, typeDeclaration:ITypeDeclarationSymbol, key:TSymbolKey, baseDeclarations:IDeclarationSymbol[], visitedScopes:TScope[] Var, cancelCondition:ILookupCancelCondition, cancelled:Int Var)
 			Local resultDeclarationsInSuperTypes:IDeclarationSymbol[]
 			
 			For Local superType:ITypeSymbol = EachIn typeDeclaration.SuperTypes()
@@ -120,7 +121,10 @@ Type TScopeTree Final
 				visitedScopes :+ [superTypeScope]
 				If LoggingActive(ELogCategory.ScopeLookup) Then Log ELogCategory.ScopeLookup, "looking in super type " + typeDeclaration.Name() + "->" + superType.Declaration().Name() + " scope " + superTypeScope.ToString()
 				
-				If cancelConditionObject.LookupCancelCondition(superTypeScope) Then cancelled = True; Return Null
+				If cancelCondition And cancelCondition.LookupCancelCondition(superTypeScope) Then
+					cancelled = True
+					Return Null
+				End If
 				
 				Local declarationsInSuperType:IDeclarationSymbol[] = superTypeScope[key]
 				If declarationsInSuperType Then 
@@ -129,7 +133,7 @@ Type TScopeTree Final
 					declarationsInSuperType = WithoutOverriddenOrShadowedDeclarations(declarationsInSuperType, baseDeclarations)
 					resultDeclarationsInSuperTypes :+ declarationsInSuperType
 				End If
-				resultDeclarationsInSuperTypes :+ LookUpInSuperTypes(Self_, superType.Declaration(), key, resultDeclarationsInSuperTypes + declarationsInSuperType, visitedScopes, cancelConditionObject, cancelled)
+				resultDeclarationsInSuperTypes :+ LookUpInSuperTypes(Self_, superType.Declaration(), key, resultDeclarationsInSuperTypes + declarationsInSuperType, visitedScopes, cancelCondition, cancelled)
 				If cancelled Then Return Null
 			Next
 			
@@ -147,7 +151,7 @@ Type TScopeTree Final
 					If baseDeclaration = declaration Then
 						' same
 						keep[d] = False; resultDeclarationsCount :- 1; Exit
-					ElseIf IVariableDeclarationSymbol(baseDeclaration) And IVariableDeclarationSymbol(declaration) Then
+					ElseIf IValueDeclarationSymbol(baseDeclaration) And IValueDeclarationSymbol(declaration) Then
 						If IOverloadableDeclarationSymbol(baseDeclaration) And IOverloadableDeclarationSymbol(declaration) Then
 							' overloaded, overridden, shadowed?
 							' TODO: keep or not?
@@ -241,9 +245,30 @@ Type TScope Final
 			Local existingOverloads:IOverloadableDeclarationSymbol[] = IOverloadableDeclarationSymbol[](declarations[key])
 			declarations[key] = existingOverloads + [declaration]
 		Else
-			Assert Not declarations.Contains(key) Else "Scope already contains a declaration with this key"
-			declarations[key] = declaration
+			If declarations.Contains(key) Then
+				ReportError "Duplicate declaration: " + declaration.Name(), GetNameSyntax(declaration)
+			Else
+				declarations[key] = declaration
+			End If
 		End If
+		
+		Function GetNameSyntax:ISyntax(declaration:IDeclarationSymbol) ' for error reporting
+			If TClassDeclarationSyntax(declaration.Syntax()) Then
+				Return TClassDeclarationSyntax(declaration.Syntax()).Name()
+			Else If TInterfaceDeclarationSyntax(declaration.Syntax()) Then
+				Return TInterfaceDeclarationSyntax(declaration.Syntax()).Name()
+			Else If TStructDeclarationSyntax(declaration.Syntax()) Then
+				Return TStructDeclarationSyntax(declaration.Syntax()).Name()
+			Else If TEnumDeclarationSyntax(declaration.Syntax()) Then
+				Return TEnumDeclarationSyntax(declaration.Syntax()).Name()
+			Else If TVariableDeclaratorSyntax(declaration.Syntax()) Then
+				Return TVariableDeclaratorSyntax(declaration.Syntax()).Name()
+			Else If TCallableDeclarationSyntax(declaration.Syntax()) Then
+				Return TCallableDeclarationSyntax(declaration.Syntax()).Name()
+			Else
+				RuntimeError "Missing case"
+			End If
+		End Function
 	End Method
 	
 	Method RemoveDeclaration(declaration:IDeclarationSymbol)

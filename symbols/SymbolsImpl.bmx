@@ -94,51 +94,6 @@ End Type
 
 
 Private
-Type TStructDeclarationSymbol Extends TTypeDeclarationSymbol Implements IStructDeclarationSymbol Final
-	Field ReadOnly _syntax:TStructDeclarationSyntax
-	Field _superInterfaces:IInterfaceSymbol[]
-	Field _typeParameters:ITypeParameterDeclarationSymbol[]
-	
-	Method New(syntax:TStructDeclarationSyntax)
-		Self._syntax = syntax
-		Self._name = syntax.Name().Identifier().lexerToken.value
-		Self._isReferrableByName = True
-	End Method
-	
-	Method KindName:String() Override Return "Struct" End Method
-	
-	Method Syntax:TStructDeclarationSyntax() Override Return _syntax End Method
-	
-	Method SuperTypes:ITypeSymbol[]() Override Return _superInterfaces End Method
-	
-	Method SuperInterfaces:IInterfaceSymbol[]() Override Return _superInterfaces End Method
-	
-	Method TypeParameters:ITypeParameterDeclarationSymbol[]() Override Return _typeParameters End Method
-
-	Method BodySyntax:ISyntax() Override Return _syntax.Body() End Method
-End Type
-
-Public
-Type TStructDeclarationSymbolBuilder Extends TTypeDeclarationSymbolBuilder Final
-	Private
-	Field ReadOnly _declaration:TStructDeclarationSymbol
-	
-	Public
-	Method New(syntax:TStructDeclarationSyntax)
-		Self._declaration = New TStructDeclarationSymbol(syntax)
-	End Method
-	
-	Method Declaration:IStructDeclarationSymbol() Override Return _declaration End Method
-	
-	Method SetSuperInterfaces(superInterfaces:IInterfaceSymbol[]) _declaration._superInterfaces = superInterfaces End Method
-	Method SetSuperInterface(index:Int, superInterface:IInterfaceSymbol) _declaration._superInterfaces[index] = superInterface End Method
-	
-	Method SetTypeParameters(typeParameters:ITypeParameterDeclarationSymbol[]) _declaration._typeParameters = typeParameters End Method
-End Type
-
-
-
-Private
 Type TInterfaceDeclarationSymbol Extends TTypeDeclarationSymbol Implements IInterfaceDeclarationSymbol Final
 	Field ReadOnly _syntax:TInterfaceDeclarationSyntax
 	Field _superInterfaces:IInterfaceSymbol[]
@@ -159,7 +114,7 @@ Type TInterfaceDeclarationSymbol Extends TTypeDeclarationSymbol Implements IInte
 	Method SuperInterfaces:IInterfaceSymbol[]() Override Return _superInterfaces End Method
 	
 	Method TypeParameters:ITypeParameterDeclarationSymbol[]() Override Return _typeParameters End Method
-
+	
 	Method BodySyntax:ISyntax() Override Return _syntax.Body() End Method
 End Type
 
@@ -174,6 +129,51 @@ Type TInterfaceDeclarationSymbolBuilder Extends TTypeDeclarationSymbolBuilder Fi
 	End Method
 	
 	Method Declaration:IInterfaceDeclarationSymbol() Override Return _declaration End Method
+	
+	Method SetSuperInterfaces(superInterfaces:IInterfaceSymbol[]) _declaration._superInterfaces = superInterfaces End Method
+	Method SetSuperInterface(index:Int, superInterface:IInterfaceSymbol) _declaration._superInterfaces[index] = superInterface End Method
+	
+	Method SetTypeParameters(typeParameters:ITypeParameterDeclarationSymbol[]) _declaration._typeParameters = typeParameters End Method
+End Type
+
+
+
+Private
+Type TStructDeclarationSymbol Extends TTypeDeclarationSymbol Implements IStructDeclarationSymbol Final
+	Field ReadOnly _syntax:TStructDeclarationSyntax
+	Field _superInterfaces:IInterfaceSymbol[]
+	Field _typeParameters:ITypeParameterDeclarationSymbol[]
+	
+	Method New(syntax:TStructDeclarationSyntax)
+		Self._syntax = syntax
+		Self._name = syntax.Name().Identifier().lexerToken.value
+		Self._isReferrableByName = True
+	End Method
+	
+	Method KindName:String() Override Return "Struct" End Method
+	
+	Method Syntax:TStructDeclarationSyntax() Override Return _syntax End Method
+	
+	Method SuperTypes:ITypeSymbol[]() Override Return _superInterfaces End Method
+	
+	Method SuperInterfaces:IInterfaceSymbol[]() Override Return _superInterfaces End Method
+	
+	Method TypeParameters:ITypeParameterDeclarationSymbol[]() Override Return _typeParameters End Method
+	
+	Method BodySyntax:ISyntax() Override Return _syntax.Body() End Method
+End Type
+
+Public
+Type TStructDeclarationSymbolBuilder Extends TTypeDeclarationSymbolBuilder Final
+	Private
+	Field ReadOnly _declaration:TStructDeclarationSymbol
+	
+	Public
+	Method New(syntax:TStructDeclarationSyntax)
+		Self._declaration = New TStructDeclarationSymbol(syntax)
+	End Method
+	
+	Method Declaration:IStructDeclarationSymbol() Override Return _declaration End Method
 	
 	Method SetSuperInterfaces(superInterfaces:IInterfaceSymbol[]) _declaration._superInterfaces = superInterfaces End Method
 	Method SetSuperInterface(index:Int, superInterface:IInterfaceSymbol) _declaration._superInterfaces[index] = superInterface End Method
@@ -246,6 +246,7 @@ End Type
 
 
 
+Global ErrorTypeDeclarationSymbol:TErrorTypeDeclarationSymbol = New TErrorTypeDeclarationSymbol
 Type TErrorTypeDeclarationSymbol Extends TTypeDeclarationSymbol Implements IErrorTypeDeclarationSymbol
 	Global _baseType:TErrorTypeSymbol = New TErrorTypeSymbol(Null)
 	
@@ -271,11 +272,12 @@ Type TErrorTypeDeclarationSymbol Extends TTypeDeclarationSymbol Implements IErro
 	Method BodySyntax:ISyntax() Override Return Null End Method
 End Type
 
-Global ErrorTypeDeclarationSymbol:TErrorTypeDeclarationSymbol = New TErrorTypeDeclarationSymbol
 
 
+Type TTypeSymbol Implements ITypeSymbol Abstract
+End Type
 
-Type TClassSymbol Implements IClassSymbol Final
+Type TClassSymbol Extends TTypeSymbol Implements IClassSymbol Final
 	Field ReadOnly _syntax:TTypeSyntax
 	Field ReadOnly _declaration:IClassDeclarationSymbol
 	
@@ -286,24 +288,14 @@ Type TClassSymbol Implements IClassSymbol Final
 	
 	Method Syntax:TTypeSyntax() Override Return _syntax End Method
 	
+	Method Name:String() Override Return _declaration.Name() End Method
+	
 	Method Declaration:IClassDeclarationSymbol() Override Return _declaration End Method
+	
+	Method TypeArguments:ITypeSymbol[]() Override RuntimeError "TODO" End Method
 End Type
 
-Type TStructSymbol Implements IStructSymbol Final
-	Field ReadOnly _syntax:TTypeSyntax
-	Field ReadOnly _declaration:IStructDeclarationSymbol
-	
-	Method New(syntax:TTypeSyntax, declaration:IStructDeclarationSymbol)
-		Self._syntax = syntax
-		Self._declaration = declaration
-	End Method
-	
-	Method Syntax:TTypeSyntax() Override Return _syntax End Method
-	
-	Method Declaration:IStructDeclarationSymbol() Override Return _declaration End Method
-End Type
-
-Type TInterfaceSymbol Implements IInterfaceSymbol Final
+Type TInterfaceSymbol Extends TTypeSymbol Implements IInterfaceSymbol Final
 	Field ReadOnly _syntax:TTypeSyntax
 	Field ReadOnly _declaration:IInterfaceDeclarationSymbol
 	
@@ -314,10 +306,32 @@ Type TInterfaceSymbol Implements IInterfaceSymbol Final
 	
 	Method Syntax:TTypeSyntax() Override Return _syntax End Method
 	
+	Method Name:String() Override Return _declaration.Name() End Method
+	
 	Method Declaration:IInterfaceDeclarationSymbol() Override Return _declaration End Method
+	
+	Method TypeArguments:ITypeSymbol[]() Override RuntimeError "TODO" End Method
 End Type
 
-Type TEnumSymbol Implements IEnumSymbol Final
+Type TStructSymbol Extends TTypeSymbol Implements IStructSymbol Final
+	Field ReadOnly _syntax:TTypeSyntax
+	Field ReadOnly _declaration:IStructDeclarationSymbol
+	
+	Method New(syntax:TTypeSyntax, declaration:IStructDeclarationSymbol)
+		Self._syntax = syntax
+		Self._declaration = declaration
+	End Method
+	
+	Method Syntax:TTypeSyntax() Override Return _syntax End Method
+	
+	Method Name:String() Override Return _declaration.Name() End Method
+	
+	Method Declaration:IStructDeclarationSymbol() Override Return _declaration End Method
+	
+	Method TypeArguments:ITypeSymbol[]() Override RuntimeError "TODO" End Method
+End Type
+
+Type TEnumSymbol Extends TTypeSymbol Implements IEnumSymbol Final
 	Field ReadOnly _syntax:TTypeSyntax
 	Field ReadOnly _declaration:IEnumDeclarationSymbol
 	
@@ -328,10 +342,14 @@ Type TEnumSymbol Implements IEnumSymbol Final
 	
 	Method Syntax:TTypeSyntax() Override Return _syntax End Method
 	
+	Method Name:String() Override Return _declaration.Name() End Method
+	
 	Method Declaration:IEnumDeclarationSymbol() Override Return _declaration End Method
+	
+	Method TypeArguments:ITypeSymbol[]() Override RuntimeError "TODO" End Method
 End Type
 
-Type TTypeParameterSymbol Implements ITypeParameterSymbol Final
+Type TTypeParameterSymbol Extends TTypeSymbol Implements ITypeParameterSymbol Final
 	Field ReadOnly _syntax:TTypeSyntax
 	Field ReadOnly _declaration:ITypeParameterDeclarationSymbol
 	
@@ -342,10 +360,12 @@ Type TTypeParameterSymbol Implements ITypeParameterSymbol Final
 	
 	Method Syntax:TTypeSyntax() Override Return _syntax End Method
 	
+	Method Name:String() Override Return _declaration.Name() End Method
+	
 	Method Declaration:ITypeParameterDeclarationSymbol() Override Return _declaration End Method
 End Type
 
-Type TErrorTypeSymbol Implements IErrorTypeSymbol Final
+Type TErrorTypeSymbol Extends TTypeSymbol Implements IErrorTypeSymbol Final
 	Field ReadOnly _syntax:TTypeSyntax
 	
 	Method New(syntax:TTypeSyntax)
@@ -354,6 +374,87 @@ Type TErrorTypeSymbol Implements IErrorTypeSymbol Final
 	
 	Method Syntax:TTypeSyntax() Override Return _syntax End Method
 	
+	Method Name:String() Override Return ErrorTypeDeclarationSymbol.Name() End Method
+	
 	Method Declaration:IErrorTypeDeclarationSymbol() Override Return ErrorTypeDeclarationSymbol End Method
+
+	Method TypeArguments:ITypeSymbol[]() override Return [] End Method
 End Type
+
+
+
+
+
+Type TValueDeclarationSymbol Implements IValueDeclarationSymbol Abstract
+	Field _name:String
+	Field _isReferrableByName:Int
+	Field _declaredType:ITypeSymbol
+	
+	Method Name:String() Override Return _name End Method
+	
+	Method IsReferrableByName:Int() Override Return _isReferrableByName End Method
+	
+	Method DeclaredType:ITypeSymbol() Override Return _declaredType End Method
+End Type
+
+Type TConstDeclarationSymbol Extends TValueDeclarationSymbol Implements IConstDeclarationSymbol
+	Field ReadOnly _syntax:TVariableDeclaratorSyntax
+	
+	Method New(syntax:TVariableDeclaratorSyntax, declaredType:ITypeSymbol)
+		Self._syntax = syntax
+		Self._name = syntax.Name().Identifier().lexerToken.value
+		Self._isReferrableByName = True
+		Self._declaredType = declaredType
+	End Method
+	
+	Method KindName:String() Override Return "Const" End Method
+	
+	Method Syntax:TVariableDeclaratorSyntax() Override Return _syntax End Method
+End Type
+
+Type TGlobalDeclarationSymbol Extends TValueDeclarationSymbol Implements IGlobalDeclarationSymbol
+	Field ReadOnly _syntax:TVariableDeclaratorSyntax
+	
+	Method New(syntax:TVariableDeclaratorSyntax, declaredType:ITypeSymbol)
+		Self._syntax = syntax
+		Self._name = syntax.Name().Identifier().lexerToken.value
+		Self._isReferrableByName = True
+		Self._declaredType = declaredType
+	End Method
+	
+	Method KindName:String() Override Return "Global" End Method
+	
+	Method Syntax:TVariableDeclaratorSyntax() Override Return _syntax End Method
+End Type
+
+Type TFieldDeclarationSymbol Extends TValueDeclarationSymbol Implements IFieldDeclarationSymbol
+	Field ReadOnly _syntax:TVariableDeclaratorSyntax
+	
+	Method New(syntax:TVariableDeclaratorSyntax, declaredType:ITypeSymbol)
+		Self._syntax = syntax
+		Self._name = syntax.Name().Identifier().lexerToken.value
+		Self._isReferrableByName = True
+		Self._declaredType = declaredType
+	End Method
+	
+	Method KindName:String() Override Return "Field" End Method
+	
+	Method Syntax:TVariableDeclaratorSyntax() Override Return _syntax End Method
+End Type
+
+Type TLocalDeclarationSymbol Extends TValueDeclarationSymbol Implements ILocalDeclarationSymbol
+	Field ReadOnly _syntax:TVariableDeclaratorSyntax
+	
+	Method New(syntax:TVariableDeclaratorSyntax, declaredType:ITypeSymbol)
+		Self._syntax = syntax
+		Self._name = syntax.Name().Identifier().lexerToken.value
+		Self._isReferrableByName = True
+		Self._declaredType = declaredType
+	End Method
+	
+	Method KindName:String() Override Return "Local" End Method
+	
+	Method Syntax:TVariableDeclaratorSyntax() Override Return _syntax End Method
+End Type
+
 

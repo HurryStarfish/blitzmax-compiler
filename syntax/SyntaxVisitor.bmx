@@ -32,6 +32,9 @@ Type TSyntaxVisitor Abstract
 	Method Visit(tree:TSyntaxTree) Final
 		VisitSyntax Self, tree.GetRootSyntax()
 	End Method
+	Method Visit(syntax:ISyntax) Final
+		VisitSyntax Self, syntax
+	End Method
 End Type
 
 

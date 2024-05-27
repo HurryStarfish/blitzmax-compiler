@@ -133,11 +133,13 @@ Function TestSymbols(doPrint:Int = True)
 	
 	Local vs:TCreateScopesVisitor = New TCreateScopesVisitor
 	vs.Visit x
+	Local scopeTree:TScopeTree = New TScopeTree(vs.scopes)
 	Local vt:TCollectTypeDeclarationSyntaxesVisitor = New TCollectTypeDeclarationSyntaxesVisitor
 	vt.Visit x
-	Local scopeTree:TScopeTree = New TScopeTree(vs.scopes)
 	CreateTypeDeclarations TTypeDeclarationSyntax[](vt.typeDeclarationSyntaxes.ToArray()), scopeTree
-		
+	Local vd:TValueDeclarationsVisitor = New TValueDeclarationsVisitor(scopeTree)
+	vd.Visit x
+	
 	If doPrint Then
 		For Local error:TSemanticError = EachIn SemanticErrors
 			Print "COMPILE ERROR: " + error.ToString()
@@ -167,7 +169,10 @@ Type TGenTestVisitor Extends TSyntaxVisitor
 		str = ""
 	End Method
 	Method VisitTopDown(s:IStatementSyntax)
-		Local sstr:String = SyntaxToCode(s)
+		Local cv:TSyntaxToCodeVisitor = New TSyntaxToCodeVisitor()
+		cv.Visit s
+		Assert cv.fileResults.length = 1 Else "wtf"
+		Local sstr:String = cv.fileResults[0].stringBuilder.ToString()
 		If sstr.Find("'") <> -1 Then sstr = sstr[..sstr.Find("'")]
 		str :+ sstr + "   <-"
 	End Method

@@ -3,9 +3,11 @@
 
 'T.F 1, 2, 3
 'T.F(1, 2, 3).M
-
+'Rem
 Type A End Type
 Type B
+	Global G:A
+	Field f:B
 	Function F()
 		If True Then
 			Function G()
@@ -14,7 +16,7 @@ Type B
 		End If
 	End Function
 End Type
-
+'End Rem
 Rem
 Type A End Type
 Type B

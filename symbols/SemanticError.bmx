@@ -34,7 +34,7 @@ End Type
 
 
 
-Function ReportError(message:String, syntax:ISyntax)
+Function ReportError(message:String, syntax:ISyntax) ' TODO: this should be part of a compilation, not global
 	SemanticErrors.AddLast New TSemanticError(message, syntax)
 	If ThrowOnSemanticError Then Throw message
 End Function

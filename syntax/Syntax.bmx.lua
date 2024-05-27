@@ -1004,7 +1004,7 @@ nodetypes = {
 	{
 		category = "Types",
 		{
-			-- TODO: restructure to allow member access after type argument list
+			-- TODO: restructure to allow a type argument list after each name part
 			name = "TType", extends = {"T"},
 			kind = "Type",
 			fields = {

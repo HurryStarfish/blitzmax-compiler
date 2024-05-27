@@ -7,6 +7,8 @@ Enum ELogCategory
 	LexerTokens
 	ParserTokens
 	TypeCreation
+	ValueCreation
+	TypeLookup
 	ScopeLookup
 End Enum
 
@@ -14,6 +16,8 @@ Global ActiveLogCategories:ELogCategory[] = [ ..
 	ELogCategory.LexerTokens, ..
 	ELogCategory.ParserTokens, ..
 	ELogCategory.TypeCreation, ..
+	ELogCategory.ValueCreation, ..
+	ELogCategory.TypeLookup, ..
 	ELogCategory.ScopeLookup ..
 ]
 
